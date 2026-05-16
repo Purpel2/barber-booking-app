@@ -1,11 +1,6 @@
-/* font google */
-@import url('https://fonts.googleapis.com/css2?family=Epilogue:wght=400;500;700;800&family=Inter:wght@400;500;600&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
-
-
 @import "tailwindcss";
 
-:root {
+@theme {
     --color-background: #131313;
     --color-on-background: #e5e2e1;
     --color-primary: #e9c176;
@@ -20,8 +15,6 @@
     --font-body: "Inter", sans-serif;
     --font-label: "Inter", sans-serif;
 }
-
-
 
 body {
     background-color: var(--color-background);
