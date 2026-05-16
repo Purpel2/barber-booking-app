@@ -8,7 +8,7 @@ export default function RegisterPage() {
     return (
 
         //glowny kontener
-        <div className="bg-background text-on-background font-body min-h-screen relative overflow-hidden">
+        <div className="bg-background text-on-background font-body min-h-screen relative overflow-y-auto">
 
             {/* fota */}
             <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
