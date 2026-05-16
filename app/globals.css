@@ -1,3 +1,39 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/* font google */
+@import url('https://fonts.googleapis.com/css2?family=Epilogue:wght=400;500;700;800&family=Inter:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+
+
+@import "tailwindcss";
+
+:root {
+    --color-background: #131313;
+    --color-on-background: #e5e2e1;
+    --color-primary: #e9c176;
+    --color-on-primary: #412d00;
+    --color-surface-container-highest: #353534;
+    --color-surface-container-high: #2a2a2a;
+    --color-on-surface: #e5e2e1;
+    --color-on-surface-variant: #c4c7c7;
+    --color-outline-variant: #444748;
+
+    --font-headline: "Epilogue", sans-serif;
+    --font-body: "Inter", sans-serif;
+    --font-label: "Inter", sans-serif;
+}
+
+
+
+body {
+    background-color: var(--color-background);
+    color: var(--color-on-background);
+    font-family: var(--font-body);
+}
+
+.material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+}
+
+.glass-panel {
+    background: rgba(28, 27, 27, 0.8);
+    backdrop-filter: blur(24px);
+}

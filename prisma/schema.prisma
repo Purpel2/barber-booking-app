@@ -1,6 +1,7 @@
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL") // To znowu jest dozwolone w v6
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 generator client {
@@ -11,4 +12,13 @@ model TestService {
   id    String @id @default(uuid())
   title String
   price Int
+}
+
+model User {
+  id        BigInt   @id @default(autoincrement())
+  email     String?
+  password  String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("user") 
 }
