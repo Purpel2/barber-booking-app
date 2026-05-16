@@ -6,12 +6,14 @@ const inter = Inter({
   variable: "--font-inter",
   subsets: ["latin"],
   display: "swap",
+  weight: ["400", "500", "600"],
 });
 
 const epilogue = Epilogue({
   variable: "--font-epilogue",
   subsets: ["latin"],
   display: "swap",
+  weight: ["400", "500", "700", "800"],
 });
 
 export const metadata: Metadata = {
