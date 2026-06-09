@@ -8,6 +8,12 @@ generator client {
   provider = "prisma-client-js"
 }
 
+enum Role {
+  USER
+  EMPLOYEE
+  ADMIN
+}
+
 model TestService {
   id    String @id @default(uuid())
   title String
@@ -15,10 +21,13 @@ model TestService {
 }
 
 model User {
-  id        BigInt   @id @default(autoincrement())
-  email     String?
-  password  String?
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("user") 
+  id          String   @id
+  email       String   @unique
+  firstName   String
+  lastName    String
+  fullName    String   // Do szybkiego renderowania w aplikacji
+  phonePrefix String   // np. "+48"
+  phoneBody   String   // np. "123456789"
+  role        Role     @default(USER)
+  createdAt   DateTime @default(now())
 }

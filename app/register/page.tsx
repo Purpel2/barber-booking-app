@@ -1,10 +1,45 @@
 "use client";
 import { useState } from "react";
 import { Eye, EyeOff, ArrowRight } from "lucide-react";
+import { registerUser } from "../actions/auth";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 export default function RegisterPage() {
     const [showPassword, setShowPassword] = useState(false);
+    const router = useRouter();
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const [success, setSuccess] = useState(false);
+
+    async function handleSubmit(formData: FormData) {
+        setError(null);
+        const loadingToast = toast.loading("Tworzenie ekskluzywnego profilu...");
+
+        const result = await registerUser(formData);
+        toast.dismiss(loadingToast);
+
+        if (result?.error) {
+            setError(result.error);
+            toast.error("Nie udało się utworzyć konta.");
+        } else if (result?.success) {
+            toast.success("Konto utworzone pomyślnie! Witamy w klubie.", {
+                duration: 5000,
+                style: {
+                    background: "#2a2a2a",
+                    color: "#e9c176",
+                    border: "1px solid rgba(233, 193, 118, 0.2)",
+                },
+                iconTheme: {
+                    primary: "#e9c176",
+                    secondary: "#2a2a2a",
+                },
+            });
+            router.push("/login");
+        }
+    }
+
     return (
 
         //glowny kontener
@@ -32,28 +67,63 @@ export default function RegisterPage() {
                         <p className="text-on-surface-variant max-w-sm leading-relaxed mx-auto md:mx-0">Doświadcz precyzyjnej pielęgnacji dostosowanej do Twojego wyjątkowego charakteru. Twoja podróż zaczyna się tutaj.</p>
                     </div>
                     {/* formularz */}
-                    <form className="space-y-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {error && (
+                        <div className="mb-6 p-4 bg-red-900/50 border border-red-500/30 rounded-lg text-sm text-red-200">
+                            {error}
+                        </div>
+                    )}
+                    <form className="space-y-6" action={handleSubmit}>
 
-                            {/* imie i nazwisko */}
-                            <div className=" flex flex-col gap-1.5">
-                                <label className="font-label text-[10px] uppercase tracking-[0.15em] text-on-surface-variant ml-1">Imię i Nazwisko</label>
+                        {/* imie i nazwisko */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="flex flex-col gap-1.5">
+                                <label className="font-label text-[10px] uppercase tracking-[0.15em] text-on-surface-variant ml-1">Imię</label>
                                 <input
                                     type="text"
-                                    name="fullName"
-                                    placeholder="Dawid Staniaszek"
+                                    name="firstName"
+                                    required
+                                    placeholder="Dawid"
                                     className="w-full bg-surface-container-highest border-none rounded-lg px-4 py-3 text-sm focus:ring-1 focus:ring-primary placeholder:text-on-surface-variant/20 transition-all font-medium tracking-wider text-white"
                                 />
                             </div>
-                            {/* {numer teleofnu} */}
                             <div className="flex flex-col gap-1.5">
-                                <label className="font-label text-[10px] uppercase tracking-[0.15em] text-on-surface-variant ml-1">
-                                    Numer Telefonu
-                                </label>
+                                <label className="font-label text-[10px] uppercase tracking-[0.15em] text-on-surface-variant ml-1">Nazwisko</label>
                                 <input
-                                    name="phone"
+                                    type="text"
+                                    name="lastName"
+                                    required
+                                    placeholder="Staniaszek"
+                                    className="w-full bg-surface-container-highest border-none rounded-lg px-4 py-3 text-sm focus:ring-1 focus:ring-primary placeholder:text-on-surface-variant/20 transition-all font-medium tracking-wider text-white"
+                                />
+                            </div>
+                        </div>
+                        {/* {numer teleofnu} */}
+                        <div className="flex flex-col gap-1.5">
+                            <label className="font-label text-[10px] uppercase tracking-[0.15em] text-on-surface-variant ml-1">
+                                Numer Telefonu
+                            </label>
+                            <div className="flex gap-2">
+                                {/* Wybór numeru kierunkowego */}
+                                <select
+                                    name="phonePrefix"
+                                    defaultValue="+48"
+                                    className="bg-surface-container-highest border-none rounded-lg px-3 py-3 text-sm focus:ring-1 focus:ring-primary text-white cursor-pointer font-medium"
+                                >
+                                    <option value="+48" className="bg-[#1a1a1a] text-white">+48 (PL)</option>
+                                    <option value="+44" className="bg-[#1a1a1a] text-white">+44 (UK)</option>
+                                    <option value="+49" className="bg-[#1a1a1a] text-white">+49 (DE)</option>
+                                    <option value="+420" className="bg-[#1a1a1a] text-white">+420 (CZ)</option>
+                                    <option value="+1" className="bg-[#1a1a1a] text-white">+1 (US)</option>
+                                </select>
+
+                                {/* Właściwy numer telefonu */}
+                                <input
                                     type="tel"
-                                    placeholder="+48 000-000-000"
+                                    name="phoneBody"
+                                    required
+                                    pattern="[0-9]{9,15}"
+                                    title="Wpisz poprawny numer telefonu (same cyfry)"
+                                    placeholder="123456789"
                                     className="w-full bg-surface-container-highest border-none rounded-lg px-4 py-3 text-sm focus:ring-1 focus:ring-primary placeholder:text-on-surface/20 transition-all text-white"
                                 />
                             </div>
@@ -67,7 +137,7 @@ export default function RegisterPage() {
                                 name="email"
                                 type="email"
                                 required
-                                placeholder="vance@atelier.com"
+                                placeholder="adres@domena.com"
                                 className="w-full bg-surface-container-highest border-none rounded-lg px-4 py-3 text-sm focus:ring-1 focus:ring-primary placeholder:text-on-surface/20 transition-all text-white"
                             />
                         </div>
@@ -132,7 +202,16 @@ export default function RegisterPage() {
                             </button>
                         </div>
 
+
                     </form>
+                    <div className="mt-8 text-center">
+                        <p className="text-on-surface-variant font-body text-sm">
+                            Masz już konto?{" "}
+                            <Link className="text-primary font-bold ml-1 hover:underline underline-offset-4 decoration-primary/30 transition-all" href="/login">
+                                Zaloguj się
+                            </Link>
+                        </p>
+                    </div>
                 </div>
 
 
