@@ -50,7 +50,7 @@ export default function RegisterPage() {
                 <img
                     alt="Barber"
                     className="w-full h-full object-cover grayscale"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDbwdiBtwz1pBRYojhxzs5Bj2wp564xZBo1BIO1vAPXqGG2O5wsCNpkIUQD0W9fFYM3vBq8LI9EunV6qJh6hJIvZg_FYMvgUVcb6Ix-q0jg2Y3bvmHGzSt_oq-zbYYd4PzbG7k3zu_-iQtsXTFe-DzTKCaDj7uGYrGBhiHfRuJ-Q5_0yCwIaVUfba7ZuRqC_5obJgbxAbW40sKFZqc66kboDEAVizXYtC72iCN51ecsBdUm6M0iDAc7Mcfr5ZxoKf-0KBAvii0o15zj"
+                    src="/images/register_bg.webp"
                 />
                 {/* gradient */}
                 <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background"></div>
@@ -62,7 +62,7 @@ export default function RegisterPage() {
                     <div className="mb-10 text-center md:text-left">
                         <span className="font-label text-xs tracking-[0.2em] text-primary uppercase mb-2 block">Rejestracja</span>
                         <h1 className="font-headline text-4xl md:text-5xl font-bold tracking-tight text-on-background mb-4">
-                            Dołącz do <span className="text-primary italic">Twoja nazwa</span>
+                            Dołącz do <span className="text-primary italic">Fresh Cut</span>
                         </h1>
                         <p className="text-on-surface-variant max-w-sm leading-relaxed mx-auto md:mx-0">Doświadcz precyzyjnej pielęgnacji dostosowanej do Twojego wyjątkowego charakteru. Twoja podróż zaczyna się tutaj.</p>
                     </div>

@@ -25,9 +25,26 @@ model User {
   email       String   @unique
   firstName   String
   lastName    String
-  fullName    String   // Do szybkiego renderowania w aplikacji
-  phonePrefix String   // np. "+48"
-  phoneBody   String   // np. "123456789"
+  fullName    String
+  phonePrefix String
+  phoneBody   String
   role        Role     @default(USER)
   createdAt   DateTime @default(now())
+}
+model Review {
+  id         String   @id @default(uuid())
+  content    String
+  author     String
+  rating     Float    @default(5.0)
+  createdAt  DateTime @default(now())
+}
+
+model Barber {
+  id        String   @id @default(dbgenerated("gen_random_uuid()"))
+  name      String
+  role      String
+  bio       String
+  imageUrl  String
+  createdAt DateTime @default(dbgenerated("now()"))
+  updatedAt DateTime @default(dbgenerated("now()")) @updatedAt
 }

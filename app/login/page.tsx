@@ -29,7 +29,7 @@ export default function LoginPage() {
                 <img
                     alt="High-end barbershop atmosphere"
                     className="w-full h-full object-cover filter grayscale brightness-[0.3]"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDodBCQeqT7Rk_CwnJlKPFTiiI1RL5ikqcBng_yDTWgnlKaqbYDCCno-MjLwh5eaz946YLHU3__ec3zkjUaJiOjlotP0zCqoccD4RRiAuQbDghEKVCFT-guDTZZa6LoUA4OoozB_mh3BSTkbNHMZqpS8CJnn9cZsE3l9Qax2-0m4evz-wDJZJmswhSURKXxENJWvq1_fTajmwapZ558t7-pwR53ZBoP4WTaRQ4vIfDiW2-ShJdz2TbL3t6mLHgCK9PwPUVcuHI200Wv"
+                    src="/images/login_bg.webp"
                 />
             </div>
 
@@ -37,7 +37,7 @@ export default function LoginPage() {
             <main className="relative z-20 min-h-screen flex flex-col items-center justify-center px-6 py-20">
                 {/* naglowek */}
                 <header className="mb-12 text-center">
-                    <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-[0.3em] text-primary mb-2">NAZWA</h1>
+                    <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-[0.3em] text-primary mb-2">Fresh Cut</h1>
                     <p className="font-label text-[10px] uppercase tracking-[0.2em] text-on-surface-variant">Ekskluzywna Pielęgnacja</p>
                 </header>
 

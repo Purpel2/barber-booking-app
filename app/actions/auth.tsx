@@ -91,3 +91,7 @@ export async function loginUser(formData: FormData) {
         return { error: "Wystąpił błąd serwera. Spróbuj ponownie później." };
     }
 }
+export async function logoutUser() {
+    const supabase = await createClient();
+    await supabase.auth.signOut();
+}
