@@ -5,6 +5,7 @@ import { Scissors, Flower2, Star, StarHalf, Quote } from "lucide-react";
 import { Barber } from "@prisma/client";
 
 export default async function Home() {
+  //autentykacja serwerowa
   const supabase = await createClient();
   const { data: { user: authUser } } = await supabase.auth.getUser();
 
@@ -28,6 +29,7 @@ export default async function Home() {
     <div className="bg-background text-on-surface font-body selection:bg-primary selection:text-on-primary min-h-screen">
 
       <main>
+        {/* sekcja hero */}
         <section className="relative min-h-screen flex items-center justify-start pt-20 overflow-hidden">
           <div className="absolute inset-0 z-0">
             <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent z-10"></div>
@@ -56,6 +58,7 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* sekcja o nas */}
         <section className="py-32 px-8 md:px-20">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
             <div className="lg:col-span-7 relative">
@@ -91,7 +94,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* generowani barberzy z bazy */}
+        {/* sekcja barberzy */}
         <section className="py-32 bg-surface-container-low">
           <div className="px-8 md:px-20 mb-20">
             <h2 className="font-headline text-5xl font-bold mb-4">Nasi Barberzy</h2>
@@ -134,6 +137,7 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* sekcja opinie klientow */}
         <section className="py-32">
           <div className="px-8 md:px-20 text-center mb-20">
             <span className="text-primary font-label tracking-widest text-xs uppercase mb-4 block">OPINIE</span>
@@ -155,6 +159,7 @@ export default async function Home() {
                     <div>
                       <p className="font-headline font-bold mb-1">{review.author}</p>
                       <div className="flex gap-0.5 items-center">
+                        {/* generowanie gwiazdek na podstawie oceny */}
                         {Array(Math.floor(review.rating)).fill(0).map((_, index) => (
                           <Star key={`full-${index}`} className="w-3.5 h-3.5 text-primary fill-primary" />
                         ))}
@@ -177,6 +182,7 @@ export default async function Home() {
           </div>
         </section>
 
+        {/* sekcja CTA (call to action) */}
         <section className="py-24 px-8 md:px-20">
           <div className="bg-primary rounded-2xl p-16 flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute inset-0 opacity-10 pointer-events-none">

@@ -5,10 +5,11 @@ import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { loginUser } from "../actions/auth";
 
-export default function LoginPage() {
-    const [showPassword, setShowPassword] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+export default function LoginPage() { //stan pokazania hasla oraz ewentualnego bledu logowania
+    const [showPassword, setShowPassword] = useState(false); //przelaczanie widocznosci hasła
+    const [error, setError] = useState<string | null>(null); //przechowywanie bledu logowania
 
+    //funkcja logowania wywolywana przez submit - resetuje blad, wywoluje loginUser, a nastepnie ustawia blad lub przekierowuje na strone glowna
     async function handleSubmit(formData: FormData) {
         setError(null);
 
@@ -35,7 +36,6 @@ export default function LoginPage() {
 
             {/* glowny kontener */}
             <main className="relative z-20 min-h-screen flex flex-col items-center justify-center px-6 py-20">
-                {/* naglowek */}
                 <header className="mb-12 text-center">
                     <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-[0.3em] text-primary mb-2">Fresh Cut</h1>
                     <p className="font-label text-[10px] uppercase tracking-[0.2em] text-on-surface-variant">Ekskluzywna Pielęgnacja</p>
@@ -54,6 +54,7 @@ export default function LoginPage() {
                         </div>
                     )}
 
+                    {/* formularz logowania */}
                     <form className="space-y-6" action={handleSubmit}>
                         {/* email */}
                         <div className="space-y-2">
@@ -89,7 +90,7 @@ export default function LoginPage() {
                                     placeholder="••••••••"
                                     className="w-full bg-surface-container-highest border-none rounded-lg py-4 pl-4 pr-12 text-on-surface placeholder:text-outline/50 focus:ring-1 focus:ring-primary transition-all duration-300"
                                 />
-                                <button
+                                <button //przycisk do pokazywania/ukrywania hasła
                                     type="button"
                                     onClick={() => setShowPassword(!showPassword)}
                                     className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface/40 hover:text-white cursor-pointer select-none"

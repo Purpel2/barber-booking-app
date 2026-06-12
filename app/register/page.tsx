@@ -15,7 +15,7 @@ export default function RegisterPage() {
 
     async function handleSubmit(formData: FormData) {
         setError(null);
-        const loadingToast = toast.loading("Tworzenie ekskluzywnego profilu...");
+        const loadingToast = toast.loading("Tworzenie profilu...");
 
         const result = await registerUser(formData);
         toast.dismiss(loadingToast);
@@ -45,7 +45,7 @@ export default function RegisterPage() {
         //glowny kontener
         <div className="bg-background text-on-background font-body min-h-screen relative overflow-y-auto">
 
-            {/* fota */}
+            {/* photo background */}
             <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
                 <img
                     alt="Barber"
@@ -116,7 +116,7 @@ export default function RegisterPage() {
                                     <option value="+1" className="bg-[#1a1a1a] text-white">+1 (US)</option>
                                 </select>
 
-                                {/* Właściwy numer telefonu */}
+                                {/* input numer telefonu */}
                                 <input
                                     type="tel"
                                     name="phoneBody"

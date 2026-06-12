@@ -15,15 +15,15 @@ interface NavBarProps {
 }
 
 export default function NavBar({ user }: NavBarProps) {
-    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false); //stan menu uzytkownika - otwarte/zamkniete
     const pathname = usePathname();
 
-    async function handleLogout() {
+    async function handleLogout() { //funkcja wylogowania - wywoluje logoutUser, a nastepnie przekierowuje na strone glowna
         await logoutUser();
         window.location.href = "/";
     }
 
-    const getLinkClass = (path: string) => {
+    const getLinkClass = (path: string) => { //podswietlenie aktywnej strony w menu
         const baseClass = "font-headline font-bold tracking-tight transition-all pb-1";
         const activeClass = "text-primary border-b-2 border-primary";
         const inactiveClass = "text-on-surface/70 hover:text-primary border-b-2 border-transparent";
@@ -35,7 +35,7 @@ export default function NavBar({ user }: NavBarProps) {
         <nav className="fixed top-0 w-full z-50 bg-[#131313]/80 backdrop-blur-md border-b border-primary/15 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]">
             <div className="flex justify-between items-center px-8 py-4 max-w-full">
                 <Link href="/" className="flex items-center gap-3 group focus:outline-none select-none">
-                    {/* brzytwa */}
+                    {/* brzytwa LOGO */}
                     <svg
                         className="w-6 h-6 text-[#e9c176] transition-transform duration-300 group-hover:scale-[1.02]"
                         viewBox="0 0 512 512"
@@ -80,6 +80,7 @@ export default function NavBar({ user }: NavBarProps) {
                     <Link className={getLinkClass("/membership")} href="/membership">CZŁONKOSTWO</Link>
                 </div>
 
+                {/* menu uzytkownika */}
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-4 text-on-surface/70">
                         <button className="hover:text-primary transition-all p-1 relative cursor-pointer">
@@ -87,7 +88,7 @@ export default function NavBar({ user }: NavBarProps) {
                             <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full"></span>
                         </button>
 
-                        {user ? (
+                        {user ? ( //jesli uzytkownik jest zalogowany, pokazuje menu z imieniem i opcjami, jesli nie - ikona logowania
                             <div className="relative">
                                 <button
                                     onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -100,7 +101,7 @@ export default function NavBar({ user }: NavBarProps) {
                                     <ChevronDown className={`w-3 h-3 text-on-surface/40 transition-transform duration-200 ${isMenuOpen ? "rotate-180" : ""}`} />
                                 </button>
 
-                                {isMenuOpen && (
+                                {isMenuOpen && ( //pokazuje dropdown menu
                                     <>
                                         <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)}></div>
                                         <div className="absolute right-0 mt-3 w-56 bg-[#1c1b1b] border border-outline-variant/30 rounded-xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] p-2 z-20 animate-in fade-in slide-in-from-top-2 duration-150">
