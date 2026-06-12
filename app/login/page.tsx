@@ -26,7 +26,7 @@ export default function LoginPage() { //stan pokazania hasla oraz ewentualnego b
         <div className="bg-background text-on-background font-body min-h-screen relative overflow-y-auto selection:bg-primary selection:text-on-primary">
             {/* tło + gradient */}
             <div className="fixed inset-0 z-0">
-                <div className="absolute inset-0 bg-gradient-to-b from-background/40 via-background/80 to-background z-10"></div>
+                <div className="absolute inset-0 bg-linear-to-b from-background/40 via-background/80 to-background z-10"></div>
                 <img
                     alt="High-end barbershop atmosphere"
                     className="w-full h-full object-cover filter grayscale brightness-[0.3]"

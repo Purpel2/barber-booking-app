@@ -53,7 +53,7 @@ export default function RegisterPage() {
                     src="/images/register_bg.webp"
                 />
                 {/* gradient */}
-                <div className="absolute inset-0 bg-gradient-to-b from-background via-transparent to-background"></div>
+                <div className="absolute inset-0 bg-linear-to-b from-background via-transparent to-background"></div>
             </div>
 
             <main className="relative z-10 min-h-screen flex items-center justify-center px-6 py-24">

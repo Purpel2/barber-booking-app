@@ -32,7 +32,7 @@ export default async function Home() {
         {/* sekcja hero */}
         <section className="relative min-h-screen flex items-center justify-start pt-20 overflow-hidden">
           <div className="absolute inset-0 z-0">
-            <div className="absolute inset-0 bg-gradient-to-r from-background via-background/80 to-transparent z-10"></div>
+            <div className="absolute inset-0 bg-linear-to-r from-background via-background/80 to-transparent z-10"></div>
             <img
               alt="Luxury Barber Shop Interior"
               className="w-full h-full object-cover scale-110 origin-center"
@@ -43,7 +43,7 @@ export default async function Home() {
             <label className="font-label text-primary tracking-[0.3em] uppercase text-sm mb-6 block font-medium">DOŁĄCZ DO NAS</label>
             <h1 className="font-headline text-6xl md:text-8xl font-black text-on-surface leading-[0.9] tracking-tighter mb-8">
               Nowoczesne <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-primary via-secondary to-primary">Doświadczenie</span> <br />
+              <span className="text-transparent bg-clip-text bg-linear-to-r from-primary via-secondary to-primary">Doświadczenie</span> <br />
               Barberskie
             </h1>
             <p className="text-on-surface-variant text-xl max-w-xl mb-12 font-body leading-relaxed">Precyzja, dziedzictwo i sztuka pielęgnacji. Wejdź do przestrzeni, w której klasyczne techniki spotykają się z nowoczesną estetyką redakcyjną.</p>
@@ -62,7 +62,7 @@ export default async function Home() {
         <section className="py-32 px-8 md:px-20">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
             <div className="lg:col-span-7 relative">
-              <div className="aspect-[4/5] rounded-xl overflow-hidden shadow-2xl">
+              <div className="aspect-4/5 rounded-xl overflow-hidden shadow-2xl">
                 <img
                   alt="Barber working"
                   className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
@@ -76,14 +76,14 @@ export default async function Home() {
               <p className="text-on-surface-variant font-body text-lg leading-relaxed mb-8">Fresh Cut zrodziło się z chęci przedefiniowania rytuału pielęgnacji. Nie podążamy tylko za trendami; studiujemy architekturę twarzy i teksturę włosów, aby stworzyć wygląd, który jest unikalny dla Ciebie.</p>
               <div className="space-y-6">
                 <div className="flex items-start gap-4">
-                  <Scissors className="text-primary w-6 h-6 mt-1 flex-shrink-0" />
+                  <Scissors className="text-primary w-6 h-6 mt-1 shrink-0" />
                   <div>
                     <h4 className="font-headline font-bold text-lg">Inżynieria Precyzji</h4>
                     <p className="text-on-surface-variant text-sm">Każde cięcie wykonywane jest z chirurgiczną precyzją i artystycznym wyczuciem.</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-4">
-                  <Flower2 className="text-primary w-6 h-6 mt-1 flex-shrink-0" />
+                  <Flower2 className="text-primary w-6 h-6 mt-1 shrink-0" />
                   <div>
                     <h4 className="font-headline font-bold text-lg">Zmysłowe Rytuały</h4>
                     <p className="text-on-surface-variant text-sm">Sygnowane golenie gorącym ręcznikiem przy użyciu rzemieślniczych olejków i ekstraktów roślinnych.</p>
@@ -105,10 +105,10 @@ export default async function Home() {
             {barbers.length > 0 ? (
               barbers.map((barber: Barber) => (
                 <div key={barber.id} className="group relative bg-surface-container overflow-hidden rounded-xl border border-outline-variant/10">
-                  <div className="aspect-[16/9] overflow-hidden bg-black flex items-center justify-center">
+                  <div className="aspect-video overflow-hidden bg-black flex items-center justify-center">
                     <img
                       alt={`Barber ${barber.name}`}
-                      className="w-[100%] h-auto object-contain translate-y-[90px] transition-transform duration-500 group-hover:scale-105"
+                      className="w-full h-auto object-contain translate-y-22.5 transition-transform duration-500 group-hover:scale-105"
                       src={barber.imageUrl || "/images/placeholder.webp"}
                     />
                   </div>
@@ -201,7 +201,7 @@ export default async function Home() {
         </section>
       </main>
 
-      <footer className="w-full py-12 px-8 mt-24 bg-[#131313]">
+      <footer className="w-full py-12 px-8 mt-24 bg-background">
         <div className="flex flex-col md:flex-row justify-between items-center border-t border-primary/10 pt-8">
           <div className="font-inter text-xs tracking-[0.2em] uppercase text-on-surface/40 mb-8 md:mb-0">© 2026 Fresh Cut. WSZELKIE PRAWA ZASTRZEŻONE.</div>
           <div className="flex gap-8 mb-8 md:mb-0">
