@@ -1,18 +1,24 @@
 "use client";
-import { useState, FormEvent } from 'react';
+import { toast } from "react-hot-toast";
 
 export default function Newsletter() {
-    const [email, setEmail] = useState('');
 
-    const handleSubscribe = (e: FormEvent<HTMLFormElement>) => {
-        e.preventDefault();
+    async function handleSubmit(formData: FormData) {
+        const email = formData.get("email"); //pozniej podpiac do bazy
 
-        if (!email) return;
-
-        console.log('Zapisano e-mail:', email);
-        alert(`Dzięki! E-mail ${email} został zapisany.`);
-        setEmail('');
-    };
+        toast.success("Witamy w klubie. Sprawdź pocztę!", {
+            duration: 4000,
+            style: {
+                background: "#2a2a2a",
+                color: "#e9c176",
+                border: "1px solid rgba(233, 193, 118, 0.2)",
+            },
+            iconTheme: {
+                primary: "#e9c176",
+                secondary: "#2a2a2a",
+            },
+        });
+    }
 
     return (
         <section className="py-12 px-8 text-center bg-surface-container-low border-t border-outline-variant/10">
@@ -23,14 +29,13 @@ export default function Newsletter() {
                 Zostaw maila i wpadnij na naszą zamkniętą listę. Podrzucamy tylko tajne zniżki na kosmetyki, porady od naszych barberów i cynk, gdy otwieramy grafik na gorące okresy.
             </p>
 
-            <form onSubmit={handleSubscribe} className="max-w-lg mx-auto relative group">
+            <form action={handleSubmit} className="max-w-lg mx-auto relative group">
                 <input
                     className="w-full bg-background border-2 border-outline-variant/20 py-5 pl-6 pr-40 rounded-none focus:outline-none focus:border-primary text-on-surface placeholder:text-on-surface-variant/50 transition-all"
                     placeholder="Twój adres e-mail"
                     type="email"
                     required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
+                    name="email"
                 />
                 <button
                     type="submit"
