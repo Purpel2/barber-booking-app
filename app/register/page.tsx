@@ -7,9 +7,11 @@ import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
 export default function RegisterPage() {
+    //pokazywanie/ukrywanie hasla
     const [showPassword, setShowPassword] = useState(false);
-    const router = useRouter();
     const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+    const router = useRouter();
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState(false);
 
@@ -48,7 +50,7 @@ export default function RegisterPage() {
             {/* photo background */}
             <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
                 <img
-                    alt="Barber"
+                    alt="register background"
                     className="w-full h-full object-cover grayscale"
                     src="/images/register_bg.webp"
                 />
@@ -103,7 +105,7 @@ export default function RegisterPage() {
                                 Numer Telefonu
                             </label>
                             <div className="flex gap-2">
-                                {/* Wybór numeru kierunkowego */}
+                                {/* wybor numeru kierunkowego */}
                                 <select
                                     name="phonePrefix"
                                     defaultValue="+48"
@@ -213,8 +215,6 @@ export default function RegisterPage() {
                         </p>
                     </div>
                 </div>
-
-
             </main>
 
         </div>

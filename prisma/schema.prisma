@@ -14,11 +14,7 @@ enum Role {
   ADMIN
 }
 
-model TestService {
-  id    String @id @default(uuid())
-  title String
-  price Int
-}
+
 
 model User {
   id          String   @id
@@ -47,4 +43,13 @@ model Barber {
   imageUrl  String
   createdAt DateTime @default(dbgenerated("now()"))
   updatedAt DateTime @default(dbgenerated("now()")) @updatedAt
+}
+
+model Service {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  price       Int
+  duration    Int
+  imageUrl    String?
 }

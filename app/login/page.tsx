@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { loginUser } from "../actions/auth";
+import { toast } from "react-hot-toast";
 
 export default function LoginPage() { //stan pokazania hasla oraz ewentualnego bledu logowania
     const [showPassword, setShowPassword] = useState(false); //przelaczanie widocznosci hasła
@@ -13,12 +14,28 @@ export default function LoginPage() { //stan pokazania hasla oraz ewentualnego b
     async function handleSubmit(formData: FormData) {
         setError(null);
 
+        const loadingToast = toast.loading("Sprawdzanie danych...");
         const result = await loginUser(formData);
+        toast.dismiss(loadingToast);
 
         if (result?.error) {
             setError(result.error);
         } else if (result?.success) {
-            window.location.href = "/";
+            toast.success("Zalogowano pomyślnie!", {
+                duration: 4000,
+                style: {
+                    background: "#2a2a2a",
+                    color: "#e9c176",
+                    border: "1px solid rgba(233, 193, 118, 0.2)",
+                },
+                iconTheme: {
+                    primary: "#e9c176",
+                    secondary: "#2a2a2a",
+                },
+            });
+            setTimeout(() => {
+                window.location.href = "/";
+            }, 800);
         }
     }
 
@@ -28,7 +45,7 @@ export default function LoginPage() { //stan pokazania hasla oraz ewentualnego b
             <div className="fixed inset-0 z-0">
                 <div className="absolute inset-0 bg-linear-to-b from-background/40 via-background/80 to-background z-10"></div>
                 <img
-                    alt="High-end barbershop atmosphere"
+                    alt="login background"
                     className="w-full h-full object-cover filter grayscale brightness-[0.3]"
                     src="/images/login_bg.webp"
                 />
@@ -36,7 +53,7 @@ export default function LoginPage() { //stan pokazania hasla oraz ewentualnego b
 
             {/* glowny kontener */}
             <main className="relative z-20 min-h-screen flex flex-col items-center justify-center px-6 py-20">
-                <header className="mb-12 text-center">
+                <header className="mb-12 mt-8 text-center">
                     <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-[0.3em] text-primary mb-2">Fresh Cut</h1>
                     <p className="font-label text-[10px] uppercase tracking-[0.2em] text-on-surface-variant">Ekskluzywna Pielęgnacja</p>
                 </header>
@@ -169,24 +186,7 @@ export default function LoginPage() { //stan pokazania hasla oraz ewentualnego b
                         </Link>
                     </p>
                 </div>
-
-                {/* stopka */}
-                <footer className="mt-auto pt-20">
-                    <div className="flex gap-6 items-center justify-center text-[10px] uppercase tracking-widest text-outline/40">
-                        <a className="hover:text-primary transition-colors" href="#">Polityka prywatności</a>
-                        <span className="w-1 h-1 rounded-full bg-outline/20"></span>
-                        <a className="hover:text-primary transition-colors" href="#">Regulamin serwisu</a>
-                        <span className="w-1 h-1 rounded-full bg-outline/20"></span>
-                        <a className="hover:text-primary transition-colors" href="#">Wsparcie</a>
-                    </div>
-                </footer>
             </main>
-
-            {/* dekoracja */}
-            <div
-                className="fixed inset-0 pointer-events-none z-30 opacity-[0.03] mix-blend-overlay"
-                style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuDwQfa_zfF2kj9_2Mmq2i738cnxi5DFBf1oVXaLjBJDiqU4qtlf8WELdU9QwlCpSlSDjta2lRWtR3oQ1K5FGNMqGJkRB-N0DpkpOwg5vjHn1jPlQXNCWmWWh8Nkhc-9RAdSWixm0972Ghe-7X5gMkXRbE_vs-5vrwlGnbRNq95o9sFZHjXjoTQTf7v9cVJOGrtCJcjkaxvmYlhUok4QvePjcJvivotglUmIUF2wgOS4-ANeSt-XNMus-rHNw6Ij9Ub4v_7itc28CXS-')" }}
-            ></div>
         </div>
     );
 }

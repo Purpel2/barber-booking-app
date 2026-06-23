@@ -1,8 +1,10 @@
 import Link from "next/link";
 import { createClient } from "@/utils/supabase/server";
 import { prisma } from "@/lib/prisma";
-import { Scissors, Flower2, Star, StarHalf, Quote } from "lucide-react";
+import { Scissors, Flower2, Coffee, ShieldCheck, Star, StarHalf, Quote } from "lucide-react";
 import { Barber } from "@prisma/client";
+import Newsletter from '@/app/components/newsletter';
+
 
 export default async function Home() {
   //autentykacja serwerowa
@@ -51,46 +53,95 @@ export default async function Home() {
               <Link href={databaseUser ? "/dashboard" : "/login"} className="bg-primary text-on-primary px-10 py-5 rounded-lg font-headline font-extrabold tracking-widest text-base hover:scale-105 transition-transform text-center">
                 UMÓW WIZYTĘ
               </Link>
-              <button className="border border-outline-variant/30 text-on-surface px-10 py-5 rounded-lg font-headline font-bold tracking-widest text-base hover:bg-surface-container-high transition-colors">
+              <Link
+                href="/services"
+                className="border border-outline-variant/30 text-on-surface px-10 py-5 rounded-lg font-headline font-bold tracking-widest text-base hover:bg-surface-container-high transition-colors text-center">
                 ZOBACZ USŁUGI
-              </button>
+              </Link>
             </div>
           </div>
         </section>
 
         {/* sekcja o nas */}
-        <section className="py-32 px-8 md:px-20">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
-            <div className="lg:col-span-7 relative">
-              <div className="aspect-4/5 rounded-xl overflow-hidden shadow-2xl">
+        <section className="pt-32 px-8 md:px-20 relative">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-16 items-center max-w-7xl mx-auto">
+
+            {/* lewa strona*/}
+            <div className="lg:col-span-5 relative">
+              <div className="aspect-3/4 md:aspect-4/5 rounded-xl overflow-hidden shadow-2xl group relative">
                 <img
                   alt="Barber working"
-                  className="w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
+                  className="w-full h-full object-cover filter grayscale group-hover:grayscale-0 transition-all duration-700"
                   src="/images/barber_working.webp"
                 />
               </div>
             </div>
-            <div className="lg:col-span-5 lg:pl-12">
-              <span className="text-secondary font-label tracking-widest text-xs uppercase mb-4 block">NASZA FILOZOFIA</span>
-              <h2 className="font-headline text-5xl font-bold mb-8 leading-tight">Tworzymy coś więcej niż tylko fryzurę.</h2>
-              <p className="text-on-surface-variant font-body text-lg leading-relaxed mb-8">Fresh Cut zrodziło się z chęci przedefiniowania rytuału pielęgnacji. Nie podążamy tylko za trendami; studiujemy architekturę twarzy i teksturę włosów, aby stworzyć wygląd, który jest unikalny dla Ciebie.</p>
-              <div className="space-y-6">
+
+            {/* prawa strona */}
+            <div className="lg:col-span-7 flex flex-col justify-center">
+              <span className="text-primary font-label tracking-[0.3em] text-xs uppercase mb-4 block">
+                NASZA FILOZOFIA
+              </span>
+              <h2 className="font-headline text-5xl md:text-6xl font-black mb-8 leading-[1.1] text-on-surface">
+                Tworzymy coś <span className="text-primary italic font-black">więcej</span> niż tylko fryzurę.
+              </h2>
+
+              {/* akapit */}
+              <div className="space-y-6 mb-12 border-l-2 border-primary/30 pl-6 md:pl-8">
+                <p className="text-on-surface-variant font-body text-lg leading-relaxed">
+                  Fresh Cut zrodziło się z chęci przedefiniowania rytuału pielęgnacji. Nie podążamy tylko za trendami, studiujemy architekturę twarzy i teksturę włosów, aby stworzyć wygląd, który jest unikalny dla Ciebie.
+                </p>
+                <p className="text-on-surface-variant font-body text-lg leading-relaxed">
+                  Wierzymy, że wizyta u barbera to nie przykry obowiązek, ale rzadki moment wytchnienia od codziennego zgiełku. To przestrzeń, w której tradycyjne, stare rzemiosło bezbłędnie łączy się z tempem życia nowoczesnego dżentelmena.
+                </p>
+              </div>
+
+              {/* grid kolumny */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 md:gap-10">
+
                 <div className="flex items-start gap-4">
-                  <Scissors className="text-primary w-6 h-6 mt-1 shrink-0" />
+                  <div className="text-primary mt-1 bg-surface-container-high p-2 rounded-lg">
+                    <Scissors className="w-5 h-5 shrink-0" />
+                  </div>
                   <div>
-                    <h4 className="font-headline font-bold text-lg">Inżynieria Precyzji</h4>
-                    <p className="text-on-surface-variant text-sm">Każde cięcie wykonywane jest z chirurgiczną precyzją i artystycznym wyczuciem.</p>
+                    <h4 className="font-headline font-bold text-lg mb-1">Inżynieria Precyzji</h4>
+                    <p className="text-on-surface-variant text-sm leading-relaxed">Cięcia z chirurgiczną precyzją, architektonicznie dopasowane do Twojej twarzy.</p>
                   </div>
                 </div>
+
                 <div className="flex items-start gap-4">
-                  <Flower2 className="text-primary w-6 h-6 mt-1 shrink-0" />
+                  <div className="text-primary mt-1 bg-surface-container-high p-2 rounded-lg">
+                    <Flower2 className="w-5 h-5 shrink-0" />
+                  </div>
                   <div>
-                    <h4 className="font-headline font-bold text-lg">Zmysłowe Rytuały</h4>
-                    <p className="text-on-surface-variant text-sm">Sygnowane golenie gorącym ręcznikiem przy użyciu rzemieślniczych olejków i ekstraktów roślinnych.</p>
+                    <h4 className="font-headline font-bold text-lg mb-1">Zmysłowe Rytuały</h4>
+                    <p className="text-on-surface-variant text-sm leading-relaxed">Gorące ręczniki i rzemieślnicze olejki dla absolutnego relaksu podczas golenia.</p>
                   </div>
                 </div>
+
+                <div className="flex items-start gap-4">
+                  <div className="text-primary mt-1 bg-surface-container-high p-2 rounded-lg">
+                    <Coffee className="w-5 h-5 shrink-0" />
+                  </div>
+                  <div>
+                    <h4 className="font-headline font-bold text-lg mb-1">Klubowa Atmosfera</h4>
+                    <p className="text-on-surface-variant text-sm leading-relaxed">Wyśmienita kawa, wyselekcjonowane trunki i muzyka, która pozwala zwolnić.</p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-4">
+                  <div className="text-primary mt-1 bg-surface-container-high p-2 rounded-lg">
+                    <ShieldCheck className="w-5 h-5 shrink-0" />
+                  </div>
+                  <div>
+                    <h4 className="font-headline font-bold text-lg mb-1">Kosmetyki Premium</h4>
+                    <p className="text-on-surface-variant text-sm leading-relaxed">Pracujemy wyłącznie na elitarnych markach zapewniających zdrowie włosa.</p>
+                  </div>
+                </div>
+
               </div>
             </div>
+
           </div>
         </section>
 
@@ -182,7 +233,7 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* sekcja CTA (call to action) */}
+        {/* sekcja cta (call to action) */}
         <section className="py-24 px-8 md:px-20">
           <div className="bg-primary rounded-2xl p-16 flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute inset-0 opacity-10 pointer-events-none">
@@ -194,24 +245,16 @@ export default async function Home() {
             </div>
             <h2 className="font-headline text-on-primary text-5xl md:text-6xl font-black mb-8 relative z-10">Gotowy na transformację w Fresh Cut?</h2>
             <p className="text-on-primary/80 max-w-2xl mb-12 text-lg font-medium relative z-10">Liczba miejsc jest ograniczona. Nasi barberzy mają szybko zapełniające się kalendarze. Zarezerwuj swój czas na fotelu już dziś i doświadcz szczytu pielęgnacji.</p>
-            <Link href={databaseUser ? "/dashboard" : "/login"} className="bg-primary-container text-on-primary-container px-12 py-6 rounded-xl font-headline font-black text-xl tracking-widest hover:scale-105 transition-all shadow-2xl relative z-10 text-center">
+            <Link
+              href={databaseUser ? "/dashboard" : "/login"}
+              className="bg-background text-primary border border-primary/20 px-12 py-6 rounded-xl font-headline font-black text-xl tracking-widest hover:bg-[#1c1b1b] hover:scale-105 transition-all shadow-2xl relative z-10 text-center"
+            >
               UMÓW WIZYTĘ
             </Link>
           </div>
         </section>
       </main>
-
-      <footer className="w-full py-12 px-8 mt-24 bg-background">
-        <div className="flex flex-col md:flex-row justify-between items-center border-t border-primary/10 pt-8">
-          <div className="font-inter text-xs tracking-[0.2em] uppercase text-on-surface/40 mb-8 md:mb-0">© 2026 Fresh Cut. WSZELKIE PRAWA ZASTRZEŻONE.</div>
-          <div className="flex gap-8 mb-8 md:mb-0">
-            <Link className="font-inter text-xs tracking-[0.2em] uppercase text-on-surface/40 hover:text-primary transition-colors" href="#">PRYWATNOŚĆ</Link>
-            <Link className="font-inter text-xs tracking-[0.2em] uppercase text-on-surface/40 hover:text-primary transition-colors" href="#">WARUNKI</Link>
-            <Link className="font-inter text-xs tracking-[0.2em] uppercase text-on-surface/40 hover:text-primary transition-colors" href="#">KARIERA</Link>
-            <Link className="font-inter text-xs tracking-[0.2em] uppercase text-on-surface/40 hover:text-primary transition-colors" href="#">LOKALIZACJE</Link>
-          </div>
-        </div>
-      </footer>
+      <Newsletter />
     </div>
   );
 }

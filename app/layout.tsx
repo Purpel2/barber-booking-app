@@ -3,6 +3,7 @@ import { Inter, Epilogue } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
 import NavBar from "./components/NavBar";
+import Footer from "./components/footer";
 import { createClient } from "@/utils/supabase/server";
 import { prisma } from "@/lib/prisma";
 
@@ -51,8 +52,11 @@ export default async function RootLayout({
         <Toaster position="top-center" reverseOrder={false} />
         {/* pasek nawigacji  */}
         <NavBar user={databaseUser} />
-
-        {children}
+        <main className="grow">
+          {children}
+        </main>
+        {/* stopka */}
+        <Footer />
       </body>
     </html>
   );
