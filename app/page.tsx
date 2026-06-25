@@ -32,8 +32,8 @@ export default async function Home() {
 
       <main>
         {/* sekcja hero */}
-        <section className="relative min-h-screen flex items-center justify-start pt-20 overflow-hidden">
-          <div className="absolute inset-0 z-0">
+        <section className="relative min-h-screen flex items-center justify-start pt-20 overflow-hidden w-full">
+          <div className="absolute inset-0 z-0 overflow-hidden">
             <div className="absolute inset-0 bg-linear-to-r from-background via-background/80 to-transparent z-10"></div>
             <img
               alt="Luxury Barber Shop Interior"
@@ -41,15 +41,15 @@ export default async function Home() {
               src="/images/hero.webp"
             />
           </div>
-          <div className="relative z-20 px-8 md:px-20 max-w-5xl">
+          <div className="relative z-20 px-6 sm:px-8 md:px-20 max-w-5xl">
             <label className="font-label text-primary tracking-[0.3em] uppercase text-sm mb-6 block font-medium">DOŁĄCZ DO NAS</label>
-            <h1 className="font-headline text-6xl md:text-8xl font-black text-on-surface leading-[0.9] tracking-tighter mb-8">
+            <h1 className="font-headline text-4xl sm:text-6xl md:text-8xl font-black text-on-surface leading-[0.9] tracking-tighter mb-8">
               Nowoczesne <br />
               <span className="text-transparent bg-clip-text bg-linear-to-r from-primary via-secondary to-primary">Doświadczenie</span> <br />
               Barberskie
             </h1>
-            <p className="text-on-surface-variant text-xl max-w-xl mb-12 font-body leading-relaxed">Precyzja, dziedzictwo i sztuka pielęgnacji. Wejdź do przestrzeni, w której klasyczne techniki spotykają się z nowoczesną estetyką redakcyjną.</p>
-            <div className="flex flex-col sm:flex-row gap-6">
+            <p className="text-on-surface-variant text-lg sm:text-xl max-w-xl mb-12 font-body leading-relaxed">Precyzja, dziedzictwo i sztuka pielęgnacji. Wejdź do przestrzeni, w której klasyczne techniki spotykają się z nowoczesną estetyką redakcyjną.</p>
+            <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 sm:w-auto">
               <Link href={databaseUser ? "/dashboard" : "/login"} className="bg-primary text-on-primary px-10 py-5 rounded-lg font-headline font-extrabold tracking-widest text-base hover:scale-105 transition-transform text-center">
                 UMÓW WIZYTĘ
               </Link>
@@ -234,7 +234,7 @@ export default async function Home() {
         </section>
 
         {/* sekcja cta (call to action) */}
-        <section className="py-24 px-8 md:px-20">
+        <section className="py-16 sm:py-24 px-4 sm:px-8 md:px-20 w-full">
           <div className="bg-primary rounded-2xl p-16 flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute inset-0 opacity-10 pointer-events-none">
               <img
@@ -243,11 +243,11 @@ export default async function Home() {
                 src="/images/texture_bg.webp"
               />
             </div>
-            <h2 className="font-headline text-on-primary text-5xl md:text-6xl font-black mb-8 relative z-10">Gotowy na transformację w Fresh Cut?</h2>
-            <p className="text-on-primary/80 max-w-2xl mb-12 text-lg font-medium relative z-10">Liczba miejsc jest ograniczona. Nasi barberzy mają szybko zapełniające się kalendarze. Zarezerwuj swój czas na fotelu już dziś i doświadcz szczytu pielęgnacji.</p>
+            <h2 className="font-headline text-on-primary text-4xl sm:text-5xl md:text-6xl font-black mb-8 relative z-10 leading-tight wrap-break-word max-w-3xl">Gotowy na transformację w Fresh Cut?</h2>
+            <p className="text-on-primary/80 max-w-2xl mb-8 sm:mb-12 text-lg font-medium relative z-10 leading-relaxed">Liczba miejsc jest ograniczona. Nasi barberzy mają szybko zapełniające się kalendarze. Zarezerwuj swój czas na fotelu już dziś i doświadcz szczytu pielęgnacji.</p>
             <Link
               href={databaseUser ? "/dashboard" : "/login"}
-              className="bg-background text-primary border border-primary/20 px-12 py-6 rounded-xl font-headline font-black text-xl tracking-widest hover:bg-[#1c1b1b] hover:scale-105 transition-all shadow-2xl relative z-10 text-center"
+              className="bg-background text-primary border border-primary/20 px-6 py-4 sm:px-12 sm:py-6 rounded-xl font-headline font-black text-xl tracking-widest hover:bg-[#1c1b1b] hover:scale-105 transition-all shadow-2xl relative z-10 text-center w-full sm:w-auto"
             >
               UMÓW WIZYTĘ
             </Link>

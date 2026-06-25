@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, User, LogOut, Settings, CalendarDays, ChevronDown } from "lucide-react";
+import { Bell, User, LogOut, Settings, CalendarDays, ChevronDown, Menu, X } from "lucide-react";
 import { logoutUser } from "../actions/auth";
 
 interface NavBarProps {
@@ -16,6 +16,7 @@ interface NavBarProps {
 
 export default function NavBar({ user }: NavBarProps) {
     const [isMenuOpen, setIsMenuOpen] = useState(false); //stan menu uzytkownika - otwarte/zamkniete
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); //stan menu mobilnego - otwarte/zamkniete
     const pathname = usePathname();
 
     async function handleLogout() { //funkcja wylogowania - wywoluje logoutUser, a nastepnie przekierowuje na strone glowna
@@ -30,6 +31,14 @@ export default function NavBar({ user }: NavBarProps) {
 
         return `${baseClass} ${pathname === path ? activeClass : inactiveClass}`;
     };
+    const getMobileLinkClass = (path: string) => { //podswietlenie aktywnej strony w menu mobilnym
+        const baseClass = "font-headline font-bold tracking-tight transition-all py-3 px-4 rounded-xl block text-sm";
+        const activeClass = "text-primary bg-primary/10";
+        const inactiveClass = "text-on-surface/70 hover:text-primary hover:bg-surface-variant/20";
+
+        return `${baseClass} ${pathname === path ? activeClass : inactiveClass}`;
+    };
+
 
     return (
         <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-primary/15 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]">
@@ -37,7 +46,7 @@ export default function NavBar({ user }: NavBarProps) {
                 <Link href="/" className="flex items-center gap-3 group focus:outline-none select-none">
                     {/* brzytwa LOGO */}
                     <svg
-                        className="w-6 h-6 text-primary transition-transform duration-300 group-hover:scale-[1.02]"
+                        className="hidden md:block w-6 h-6 text-primary transition-transform duration-300 group-hover:scale-[1.02]"
                         viewBox="0 0 512 512"
                         xmlns="http://www.w3.org/2000/svg"
                     >
@@ -135,11 +144,43 @@ export default function NavBar({ user }: NavBarProps) {
                         )}
                     </div>
 
-                    <Link href={user ? "/dashboard" : "/login"} className="bg-primary text-on-primary px-6 py-2.5 rounded-lg font-headline font-bold text-sm tracking-wide hover:brightness-110 transition-all scale-95 duration-200 ease-in-out text-center">
+                    <Link href={user ? "/dashboard" : "/login"} className="hidden md:block bg-primary text-on-primary px-6 py-2.5 rounded-lg font-headline font-bold text-sm tracking-wide hover:brightness-110 transition-all scale-95 duration-200 ease-in-out text-center">
                         UMÓW WIZYTĘ
                     </Link>
+                    <button //przycisk rozwijania menu mobilnego
+                        onClick={() => { setIsMobileMenuOpen(!isMobileMenuOpen); setIsMenuOpen(false); }}
+                        className="md:hidden text-on-surface/70 hover:text-primary p-1 focus:outline-none cursor-pointer"
+                        aria-label="Toggle Mobile Menu"
+                    >
+                        {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+                    </button>
                 </div>
             </div>
+            {/* menu mobilne */}
+            {isMobileMenuOpen && (
+                <>
+                    {/* przyciemnianie tła na mobile - menu*/}
+                    <div className="absolute top-full left-0 w-full h-screen bg-black/60 backdrop-blur-sm z-30 md:hidden cursor-pointer" onClick={() => setIsMobileMenuOpen(false)}></div>
+
+                    {/* nasza lista linków */}
+                    <div className="absolute top-full left-0 w-full bg-[#1c1b1b] border-b border-primary/15 p-4 flex flex-col gap-1.5 z-40 md:hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] animate-in fade-in slide-in-from-top-2 duration-200">
+                        <Link className={getMobileLinkClass("/")} href="/" onClick={() => setIsMobileMenuOpen(false)}>STRONA GŁÓWNA</Link>
+                        <Link className={getMobileLinkClass("/services")} href="/services" onClick={() => setIsMobileMenuOpen(false)}>USŁUGI</Link>
+                        <Link className={getMobileLinkClass("/barbers")} href="/barbers" onClick={() => setIsMobileMenuOpen(false)}>BARBERZY</Link>
+                        <Link className={getMobileLinkClass("/portfolio")} href="/portfolio" onClick={() => setIsMobileMenuOpen(false)}>PORTFOLIO</Link>
+                        <Link className={getMobileLinkClass("/membership")} href="/membership" onClick={() => setIsMobileMenuOpen(false)}>CZŁONKOSTWO</Link>
+
+                        {/* umow wizyte dla mobile */}
+                        <Link
+                            href={user ? "/dashboard" : "/login"}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            className="bg-primary text-on-primary px-6 py-3.5 rounded-xl font-headline font-black text-sm tracking-widest hover:brightness-110 transition-all text-center mt-2 w-full block shadow-lg"
+                        >
+                            UMÓW WIZYTĘ
+                        </Link>
+                    </div>
+                </>
+            )}
         </nav>
     );
 }

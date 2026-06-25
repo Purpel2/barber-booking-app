@@ -31,7 +31,7 @@ export default function Newsletter() {
 
             <form action={handleSubmit} className="max-w-lg mx-auto relative group">
                 <input
-                    className="w-full bg-background border-2 border-outline-variant/20 py-5 pl-6 pr-40 rounded-none focus:outline-none focus:border-primary text-on-surface placeholder:text-on-surface-variant/50 transition-all"
+                    className="w-full bg-background border-2 border-outline-variant/20 py-5 pl-6 pr-6 sm:pr-40 placeholder:text-sm sm:placeholder:text-base rounded-none focus:outline-none focus:border-primary text-on-surface placeholder:text-on-surface-variant/50 transition-all"
                     placeholder="Twój adres e-mail"
                     type="email"
                     required

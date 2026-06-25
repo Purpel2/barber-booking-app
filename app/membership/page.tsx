@@ -2,7 +2,7 @@ import Newsletter from '../components/newsletter';
 
 export default function MembershipPage() {
     return (
-        <div className="bg-background text-on-surface font-body min-h-screen selection:bg-primary selection:text-on-primary">
+        <div className="bg-background text-on-surface font-body min-h-screen w-full overflow-x-hidden selection:bg-primary selection:text-on-primary">
 
             {/* naglowek */}
             <section className="pt-28 pb-22 px-8 lg:px-20 max-w-350 mx-auto">
@@ -10,11 +10,11 @@ export default function MembershipPage() {
 
                     {/* lewa strona */}
                     <div>
-                        <span className="font-label text-sm uppercase tracking-widest text-primary mb-2 block font-bold">
+                        <span className="font-label text-xs sm:text-sm uppercase tracking-widest text-primary mb-2 block font-bold">
                             Subskrypcja
                         </span>
-                        <h1 className="font-headline text-5xl md:text-[80px] font-black uppercase tracking-tighter leading-[0.85] text-on-surface">
-                            SALON <span className="text-primary">FRESH CUT</span>
+                        <h1 className="font-headline text-4xl sm:text-5xl md:text-[80px] font-black uppercase tracking-tighter leading-[0.85] text-on-surface">
+                            SALON<br /> <span className="text-primary">FRESH CUT</span>
                         </h1>
                     </div>
 
@@ -30,7 +30,7 @@ export default function MembershipPage() {
 
             {/* sekcja z planami subskypcji */}
             <section className="px-8 lg:px-20 max-w-350 mx-auto mb-12">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-stretch">
 
                     {/* plan 1 - fresh */}
                     <div className="bg-surface-container-low p-8 md:p-10 rounded-2xl relative group flex flex-col justify-between h-full hover:bg-surface-container-high transition-all duration-300 border border-outline-variant/10">
@@ -140,7 +140,7 @@ export default function MembershipPage() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
 
                     <div className="order-2 lg:order-1">
-                        <h2 className="font-headline text-5xl md:text-7xl font-black uppercase tracking-tighter leading-[0.85] mb-8">
+                        <h2 className="font-headline text-4xl sm:text-5xl md:text-7xl font-black uppercase tracking-tighter leading-[0.85] mb-8">
                             PO CO CI<br />
                             <span className="text-primary">CZŁONKOSTWO?</span>
                         </h2>

@@ -90,8 +90,8 @@ export default function PortfolioPage() {
             </header>
 
             {/* filtry */}
-            <section className="px-8 lg:px-20 mb-16 max-w-7xl mx-auto overflow-hidden">
-                <div className="flex overflow-x-auto no-scrollbar space-x-4 pb-4 items-center">
+            <section className="px-4 sm:px-8 lg:px-20 mb-16 max-w-7xl mx-auto overflow-hidden">
+                <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:gap-4 overflow-x-auto no-scrollbar space-x-4 pb-4 items-center">
                     {BARBERS.map((barber) => (
                         <label
                             key={barber.id}
@@ -117,7 +117,7 @@ export default function PortfolioPage() {
                                 />
                             )}
 
-                            <span className="font-headline text-base font-bold tracking-wide">
+                            <span className="font-headline text-sm sm:text-base font-bold tracking-wide">
                                 {barber.name}
                             </span>
                         </label>
