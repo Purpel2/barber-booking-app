@@ -31,3 +31,24 @@ body {
     background: rgba(28, 27, 27, 0.8);
     backdrop-filter: blur(24px);
 }
+
+/* kolory do kolendarza */
+.occupancy-empty {
+    background-color: rgba(34, 197, 94, 0.07) !important;
+}
+
+.occupancy-low {
+    background-color: rgba(34, 197, 94, 0.07) !important;
+}
+
+.occupancy-medium-low {
+    background-color: rgba(234, 179, 8, 0.07) !important;
+}
+
+.occupancy-medium-high {
+    background-color: rgba(234, 88, 12, 0.07) !important;
+}
+
+.occupancy-high {
+    background-color: rgba(239, 68, 68, 0.07) !important;
+}

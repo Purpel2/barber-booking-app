@@ -1,55 +1,126 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
   directUrl = env("DIRECT_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 enum Role {
   USER
-  EMPLOYEE
   ADMIN
 }
 
-
+enum ReservationStatus {
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+}
 
 model User {
-  id          String   @id
-  email       String   @unique
-  firstName   String
-  lastName    String
-  fullName    String
-  phonePrefix String
-  phoneBody   String
-  role        Role     @default(USER)
-  createdAt   DateTime @default(now())
-}
-model Review {
-  id         String   @id @default(uuid())
-  content    String
-  author     String
-  rating     Float    @default(5.0)
-  createdAt  DateTime @default(now())
+  id           String        @id @default(cuid())
+  email        String        @unique
+  firstName    String
+  lastName     String
+  fullName     String
+  phonePrefix  String        @default("+48")
+  phoneBody    String
+  role         Role          @default(USER)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
+  reservations Reservation[]
+  reviews      Review[]
 }
 
 model Barber {
-  id        String   @id @default(dbgenerated("gen_random_uuid()"))
-  name      String
-  role      String
-  bio       String
-  imageUrl  String
-  createdAt DateTime @default(dbgenerated("now()"))
-  updatedAt DateTime @default(dbgenerated("now()")) @updatedAt
+  id           String           @id @default(cuid())
+  name         String
+  role         String?
+  bio          String?
+  imageUrl     String
+  services     Service[]
+  schedules    BarberSchedule[]
+  daysOff      BarberDayOff[]
+  reservations Reservation[]
+  reviews      Review[]
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @default(now()) @updatedAt
 }
 
 model Service {
-  id          String   @id @default(cuid())
-  name        String
-  description String
-  price       Int
-  duration    Int
-  imageUrl    String?
+  id           String        @id @default(cuid())
+  name         String
+  description  String
+  price        Int
+  duration     Int           // czas w minutach
+  imageUrl     String?
+  barbers      Barber[]
+  reservations Reservation[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
+}
+
+model BarberSchedule {
+  id        String   @id @default(cuid())
+  barberId  String
+  dayOfWeek Int      // 1 = poniedzialek, 5 = piatek etc
+  startTime String   // 08:00
+  endTime   String   // 16:00
+  isWorking Boolean  @default(true)
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@unique([barberId, dayOfWeek])
+}
+
+model BarberDayOff {
+  id        String   @id @default(cuid())
+  barberId  String
+  startDate DateTime
+  endDate   DateTime
+  reason    String?
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+enum PaymentMethod {
+  ON_SITE
+  ONLINE
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+model Reservation {
+  id            String            @id @default(cuid())
+  startTime     DateTime
+  status        ReservationStatus @default(CONFIRMED)
+  paymentMethod PaymentMethod     @default(ON_SITE)
+  paymentStatus PaymentStatus     @default(PENDING)
+  userId        String
+  barberId      String
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  barber        Barber            @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  services      Service[]
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @default(now()) @updatedAt
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  rating    Int
+  comment   String?
+  userId    String
+  barberId  String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
 }

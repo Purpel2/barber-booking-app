@@ -26,7 +26,7 @@ export const metadata: Metadata = {
   description: "Nowoczesny i ekskluzywny salon barberski.",
 };
 
-//glowny layout aplikacji, zawiera NavBar i Toaster, sprawdza czy uzytkownik jest zalogowany i pobiera jego dane z bazy danych, zeby przekazac je do NavBar
+//glowny layout aplikacji, zawiera pasek nawigacji, stopke i kontener dla wyskakujacych powiadomien
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -45,9 +45,10 @@ export default async function RootLayout({
   return (
     <html
       lang="pl"
+      suppressHydrationWarning
       className={`${inter.variable} ${epilogue.variable} h-full antialiased dark`}
     >
-      <body className="min-h-full flex flex-col" suppressHydrationWarning={true}>
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {/* kontenrer dla wyskakujacych powiadomien */}
         <Toaster position="top-center" reverseOrder={false} />
         {/* pasek nawigacji  */}
