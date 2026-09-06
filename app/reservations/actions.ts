@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 
 export async function getBarbers() { //pobieranie barberow z bazy
@@ -341,44 +342,104 @@ export async function createReservation(data: { // funkcja do tworzenia rezerwac
     paymentMethod: "ON_SITE" | "ONLINE";
 }) {
     try {
-        const [y, m, d] = data.date.split("-").map(Number);
-        const [h, min] = data.time.split(":").map(Number);
-        const reservationDateTime = new Date(Date.UTC(y, m - 1, d, h, min, 0));
+        // autoryzacja po stronie serwera przez sesję supabase
+        const supabase = await createClient();
+        const {
+            data: { user: authUser },
+            error: authError,
+        } = await supabase.auth.getUser();
 
+        if (authError || !authUser) {
+            return {
+                success: false,
+                requiresAuth: true,
+                message: "Musisz być zalogowany, aby dokonać rezerwacji.",
+            };
+        }
 
-        let testUser = await prisma.user.findFirst({
+        // pobranie zalogowanego usera z bazy
+        const dbUser = await prisma.user.findUnique({
+            where: { id: authUser.id },
             select: { id: true },
         });
 
-        if (!testUser) {
-            testUser = await prisma.user.create({
-                data: {
-                    email: "klient.testowy@wp.pl",
-                    firstName: "Klient",
-                    lastName: "Testowy",
-                    fullName: "Klient Testowy",
-                    phoneBody: "512753145",
-                },
-                select: { id: true },
-            });
+        if (!dbUser) {
+            return {
+                success: false,
+                requiresAuth: true,
+                message: "Nie znaleziono profilu użytkownika w bazie.",
+            };
         }
+
+        if (!data.serviceIds || data.serviceIds.length === 0) {
+            return { success: false, message: "Nie wybrano żadnej usługi." };
+        }
+
+        // obliczenie calkowitego czasu trwania wybranych uslug
+        const selectedServices = await prisma.service.findMany({
+            where: { id: { in: data.serviceIds } },
+            select: { duration: true },
+        });
+
+        const totalDuration = selectedServices.reduce((acc, s) => acc + (s.duration || 30), 0);
+
+        const [y, m, d] = data.date.split("-").map(Number);
+        const [h, min] = data.time.split(":").map(Number);
+        const reservationDateTime = new Date(Date.UTC(y, m - 1, d, h, min, 0));
+        const reservationEndTime = new Date(reservationDateTime.getTime() + totalDuration * 60 * 1000);
+
+        const startOfDay = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+        const endOfDay = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
 
         const isOnline = data.paymentMethod === "ONLINE";
 
-        // insert rezerwacji do bazy danych z powiązaniem do testowego użytkownika, barbera, uslug
-        const reservation = await prisma.reservation.create({
-            data: {
-                startTime: reservationDateTime,
-                userId: testUser.id,
-                barberId: data.barberId,
-                paymentMethod: data.paymentMethod,
-                paymentStatus: isOnline ? "PAID" : "PENDING",
-                status: "CONFIRMED",
-                services: {
-                    connect: data.serviceIds.map((id) => ({ id })),
+        // transakcja w bazie danych aby sprawdzic czy wybrany termin jest nadal dostepny i jesli tak, zapisac rezerwacje w bazie
+        const reservation = await prisma.$transaction(async (tx) => {
+            const existingReservations = await tx.reservation.findMany({
+                where: {
+                    barberId: data.barberId,
+                    status: { not: "CANCELLED" },
+                    startTime: {
+                        gte: startOfDay,
+                        lte: endOfDay,
+                    },
                 },
-            },
-            select: { id: true },
+                include: {
+                    services: { select: { duration: true } },
+                },
+            });
+
+            const reqStart = reservationDateTime.getTime();
+            const reqEnd = reservationEndTime.getTime();
+
+            for (const res of existingReservations) {
+                // startujemy od 0, a jesli rezerwacja nie ma uslug, defaultowo przyjmujemy 30 min
+                const rawDuration = res.services.reduce((acc, s) => acc + (s.duration || 30), 0);
+                const resDuration = rawDuration > 0 ? rawDuration : 30;
+
+                const resStart = new Date(res.startTime).getTime();
+                const resEnd = resStart + resDuration * 60 * 1000;
+
+                if (reqStart < resEnd && reqEnd > resStart) {
+                    throw new Error("Wybrany termin został w międzyczasie zarezerwowany.");
+                }
+            }
+
+            // insert rezerwacji do bazy danych z powiązaniem do testowego użytkownika, barbera, uslug
+            return await tx.reservation.create({
+                data: {
+                    startTime: reservationDateTime,
+                    userId: dbUser.id,
+                    barberId: data.barberId,
+                    paymentMethod: data.paymentMethod,
+                    paymentStatus: isOnline ? "PAID" : "PENDING",
+                    status: "CONFIRMED",
+                    services: {
+                        connect: data.serviceIds.map((id) => ({ id })),
+                    },
+                },
+                select: { id: true },
+            });
         });
 
         revalidatePath("/reservations");

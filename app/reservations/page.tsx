@@ -94,7 +94,7 @@ function BookingContent() { // komponent do wyboru barbera, usługi i godziny wi
         loadInitialData();
     }, [searchParams]);
 
-    // usunięcie wybranych usług, które nie są oferowane przez wybranego barbera
+    // usuniecie wybranych uslug, ktore nie są oferowane przez wybranego barbera
     useEffect(() => {
         if (!selectedBarberId) return;
         setSelectedServices((prev) => {
@@ -161,10 +161,16 @@ function BookingContent() { // komponent do wyboru barbera, usługi i godziny wi
         }, 100);
     };
 
-    const handleBooking = () => { // sprawdzenie czy wszystkie dane sa wybrane, jesli tak to tworzymy rezerwacje i przekierowujemy do strony sukcesu
-        if (!selectedDate || !selectedTime || selectedServices.length === 0 || !selectedBarberId) return;
+    const handleBooking = async (e?: React.FormEvent) => {
+        if (e) e.preventDefault();
+
+        if (!selectedDate || !selectedTime || selectedServices.length === 0 || !selectedBarberId) {
+            console.warn("Brakujące dane do rezerwacji");
+            return;
+        }
 
         startTransition(async () => {
+            console.log("Wysyłam rezerwację...");
             const res = await createReservation({
                 date: format(selectedDate, "yyyy-MM-dd"),
                 time: selectedTime,
@@ -173,8 +179,12 @@ function BookingContent() { // komponent do wyboru barbera, usługi i godziny wi
                 paymentMethod: paymentMethod,
             });
 
+            console.log("Odpowiedź z createReservation:", res);
+
             if (res.success && res.reservationId) {
                 router.push(`/reservations/success?id=${res.reservationId}`);
+            } else if (res.requiresAuth) {
+                router.push("/login?redirect=/reservations");
             } else {
                 alert(res.message);
             }
@@ -424,10 +434,10 @@ function BookingContent() { // komponent do wyboru barbera, usługi i godziny wi
                                                 disabled={isBooked}
                                                 onClick={() => handleSelectTime(time)}
                                                 className={`py-3 px-2 rounded-xl transition-all font-semibold border text-sm flex items-center justify-center w-full relative ${isSelected
-                                                    ? "bg-[#e9c176] text-[#412d00] border-[#e9c176] shadow-lg shadow-[#e9c176]/20 scale-[1.02] font-bold"
+                                                    ? "bg-primary text-on-primary border-primary shadow-lg shadow-primary/20 scale-[1.02] font-bold"
                                                     : isBooked
-                                                        ? "bg-[#252424]/40 text-[#c4c7c7]/20 border-transparent cursor-not-allowed line-through select-none"
-                                                        : "bg-[#2b2a2a] text-[#e5e2e1] border-[#444748]/40 hover:border-[#e9c176] hover:bg-[#353534] cursor-pointer"
+                                                        ? "bg-[#252424]/40 text-on-surface-variant/20 border-transparent cursor-not-allowed line-through select-none"
+                                                        : "bg-[#2b2a2a] text-[#e5e2e1] border-outline-variant/40 hover:border-primary hover:bg-surface-container-highest cursor-pointer"
                                                     }`}
                                             >
                                                 {time}
@@ -438,7 +448,7 @@ function BookingContent() { // komponent do wyboru barbera, usługi i godziny wi
                                             </button>
                                             {/* tooltip do niedostępnych godzin */}
                                             {isUnavailableByDuration && (
-                                                <div className="absolute left-1/2 -translate-x-1/2 -top-14 bg-[#353534] text-on-surface text-xs px-3 py-2 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-surface-container-highest">
+                                                <div className="absolute left-1/2 -translate-x-1/2 -top-14 bg-surface-container-highest text-on-surface text-xs px-3 py-2 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-surface-container-highest">
                                                     Wybrałeś {totalDuration} min usług - za mało czasu od tej godziny
                                                 </div>
                                             )}
@@ -449,7 +459,7 @@ function BookingContent() { // komponent do wyboru barbera, usługi i godziny wi
                         )}
                     </div>
 
-                    {/* PODSUMOWANIE */}
+                    {/* podsumowanie */}
                     {selectedTime && (
                         <div
                             ref={summaryRef}

@@ -7,7 +7,7 @@ interface PageProps {
     searchParams: Promise<{ id?: string }>;
 }
 
-export default async function ReservationSuccessPage(props: PageProps) {
+export default async function ReservationSuccessPage(props: PageProps) { //funkcja do wyświetlania szczegolow rezerwacji
     const searchParams = await props.searchParams;
     const id = searchParams?.id;
 
