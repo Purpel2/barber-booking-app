@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { Bell, User, LogOut, Settings, CalendarDays, ChevronDown, Menu, X } from "lucide-react";
 import { logoutUser } from "../actions/auth";
 
@@ -15,23 +15,46 @@ interface NavBarProps {
 }
 
 export default function NavBar({ user }: NavBarProps) {
-    const [isMenuOpen, setIsMenuOpen] = useState(false); //stan menu uzytkownika - otwarte/zamkniete
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); //stan menu mobilnego - otwarte/zamkniete
+    const [isMenuOpen, setIsMenuOpen] = useState(false); // stan menu uzytkownika - otwarte/zamkniete
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // stan menu mobilnego - otwarte/zamkniete
+    const menuRef = useRef<HTMLDivElement>(null); // referencja do elementu menu uzytkownika, aby zamknac menu po kliknieciu poza nim
     const pathname = usePathname();
+    const router = useRouter();
 
-    async function handleLogout() { //funkcja wylogowania - wywoluje logoutUser, a nastepnie przekierowuje na strone glowna
+    // zamykanie dropdownu po kliknięciu gdziekolwiek poza menu
+    useEffect(() => {
+        function handleClickOutside(event: MouseEvent) {
+            if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+                setIsMenuOpen(false);
+            }
+        }
+
+        if (isMenuOpen) {
+            document.addEventListener("mousedown", handleClickOutside);
+        }
+
+        return () => {
+            document.removeEventListener("mousedown", handleClickOutside);
+        };
+    }, [isMenuOpen]);
+
+    async function handleLogout() { // funkcja wylogowania - wywoluje logoutUser, odswieza router i przekierowuje na glowna
+        setIsMenuOpen(false);
+        setIsMobileMenuOpen(false);
         await logoutUser();
-        window.location.href = "/";
+        router.push("/");
+        router.refresh();
     }
 
-    const getLinkClass = (path: string) => { //podswietlenie aktywnej strony w menu
-        const baseClass = "font-headline font-bold tracking-tight transition-all pb-1";
+    const getLinkClass = (path: string) => { // podswietlenie aktywnej strony w menu
+        const baseClass = "font-headline font-bold tracking-tight transition-all pb-1 text-lg";
         const activeClass = "text-primary border-b-2 border-primary";
         const inactiveClass = "text-on-surface/70 hover:text-primary border-b-2 border-transparent";
 
         return `${baseClass} ${pathname === path ? activeClass : inactiveClass}`;
     };
-    const getMobileLinkClass = (path: string) => { //podswietlenie aktywnej strony w menu mobilnym
+
+    const getMobileLinkClass = (path: string) => { // podswietlenie aktywnej strony w menu mobilnym
         const baseClass = "font-headline font-bold tracking-tight transition-all py-3 px-4 rounded-xl block text-sm";
         const activeClass = "text-primary bg-primary/10";
         const inactiveClass = "text-on-surface/70 hover:text-primary hover:bg-surface-variant/20";
@@ -39,6 +62,7 @@ export default function NavBar({ user }: NavBarProps) {
         return `${baseClass} ${pathname === path ? activeClass : inactiveClass}`;
     };
 
+    const bookingHref = user ? "/reservations" : "/login?redirect=/reservations";
 
     return (
         <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-primary/15 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]">
@@ -73,10 +97,10 @@ export default function NavBar({ user }: NavBarProps) {
                     </span>
 
                     <style>{`
-                             @keyframes pureShimmer {
-                             0% { background-position: 200% 0; }
-                             100% { background-position: -200% 0; }
-                             }
+                        @keyframes pureShimmer {
+                            0% { background-position: 200% 0; }
+                            100% { background-position: -200% 0; }
+                        }
                     `}</style>
                 </Link>
 
@@ -92,62 +116,91 @@ export default function NavBar({ user }: NavBarProps) {
                 {/* menu uzytkownika */}
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-4 text-on-surface/70">
-                        <button className="hover:text-primary transition-all p-1 relative cursor-pointer">
-                            <Bell className="w-5 h-5" />
-                            <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full"></span>
-                        </button>
+                        {user && (
+                            <button className="hover:text-primary transition-all p-1 relative cursor-pointer" aria-label="Powiadomienia">
+                                <Bell className="w-5 h-5" />
+                                <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full"></span>
+                            </button>
+                        )}
 
-                        {user ? ( //jesli uzytkownik jest zalogowany, pokazuje menu z imieniem i opcjami, jesli nie - ikona logowania
-                            <div className="relative">
+                        {user ? ( // jesli uzytkownik jest zalogowany, pokazuje menu z imieniem i opcjami
+                            <div className="relative" ref={menuRef}>
+                                {/* trigger dropdownu */}
                                 <button
-                                    onClick={() => setIsMenuOpen(!isMenuOpen)}
-                                    className="flex items-center gap-2 hover:text-primary transition-all p-1 cursor-pointer select-none focus:outline-none"
+                                    type="button"
+                                    onClick={() => setIsMenuOpen((prev) => !prev)}
+                                    className="flex items-center gap-2.5 p-1.5 rounded-full hover:bg-surface-container-high transition-colors cursor-pointer select-none focus:outline-none"
                                 >
-                                    <div className="w-7 h-7 bg-primary/10 border border-primary/30 rounded-full flex items-center justify-center text-primary text-xs font-bold">
-                                        {user.firstName[0]}
+                                    <div className="w-8 h-8 rounded-full bg-[#201f1f] border border-primary/40 flex items-center justify-center text-primary text-xs font-bold">
+                                        {user.firstName ? user.firstName[0].toUpperCase() : "U"}
                                     </div>
-                                    <span className="text-xs font-medium hidden sm:inline text-on-surface-variant">{user.firstName}</span>
-                                    <ChevronDown className={`w-3 h-3 text-on-surface/40 transition-transform duration-200 ${isMenuOpen ? "rotate-180" : ""}`} />
+                                    <span className="text-sm font-semibold text-[#e5e2e1] hidden sm:inline">
+                                        {user.firstName}
+                                    </span>
+                                    <ChevronDown
+                                        className={`w-4 h-4 text-[#e5e2e1]/40 transition-transform duration-200 ${isMenuOpen ? "rotate-180 text-primary" : ""
+                                            }`}
+                                    />
                                 </button>
 
-                                {isMenuOpen && ( //pokazuje dropdown menu
-                                    <>
-                                        <div className="fixed inset-0 z-10" onClick={() => setIsMenuOpen(false)}></div>
-                                        <div className="absolute right-0 mt-3 w-56 bg-[#1c1b1b] border border-outline-variant/30 rounded-xl shadow-[0_25px_50px_-12px_rgba(0,0,0,0.7)] p-2 z-20 animate-in fade-in slide-in-from-top-2 duration-150">
-                                            <div className="px-4 py-3 border-b border-outline-variant/10 mb-1">
-                                                <p className="text-xs font-bold text-on-surface">{user.fullName}</p>
-                                                <p className="text-[10px] text-on-surface-variant truncate">{user.email}</p>
-                                            </div>
+                                {/* dropdown */}
+                                <div
+                                    className={`absolute right-0 mt-2 w-52 rounded-xl bg-[#1c1b1b] border border-surface-container-high shadow-2xl p-1.5 z-50 transition-all duration-150 ease-out origin-top-right ${isMenuOpen
+                                        ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
+                                        : "opacity-0 scale-95 -translate-y-2 pointer-events-none"
+                                        }`}
+                                >
+                                    <div className="space-y-0.5">
+                                        <Link
+                                            href="/profile"
+                                            onClick={() => setIsMenuOpen(false)}
+                                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-[#e5e2e1]/80 hover:text-primary hover:bg-surface-container-high transition-colors"
+                                        >
+                                            <CalendarDays className="w-4 h-4 text-[#e5e2e1]/50" />
+                                            <span>Moje wizyty i profil</span>
+                                        </Link>
 
-                                            <Link href="/dashboard" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 rounded-lg transition-colors">
-                                                <CalendarDays className="w-4 h-4" />
-                                                <span>Historia zamówień</span>
-                                            </Link>
+                                        <Link
+                                            href="/profile/security"
+                                            onClick={() => setIsMenuOpen(false)}
+                                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-[#e5e2e1]/80 hover:text-primary hover:bg-surface-container-high transition-colors"
+                                        >
+                                            <Settings className="w-4 h-4 text-[#e5e2e1]/50" />
+                                            <span>Ustawienia konta</span>
+                                        </Link>
+                                    </div>
 
-                                            <Link href="/settings" onClick={() => setIsMenuOpen(false)} className="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-on-surface-variant hover:text-primary hover:bg-surface-variant/30 rounded-lg transition-colors">
-                                                <Settings className="w-4 h-4" />
-                                                <span>Ustawienia konta</span>
-                                            </Link>
-
-                                            <button onClick={handleLogout} className="flex items-center gap-3 w-full px-4 py-2.5 text-xs text-red-400 hover:bg-red-500/10 rounded-lg transition-colors cursor-pointer border-t border-outline-variant/5 mt-1 pt-3">
-                                                <LogOut className="w-4 h-4" />
-                                                <span>Wyloguj się</span>
-                                            </button>
-                                        </div>
-                                    </>
-                                )}
+                                    <div className="pt-1 mt-1 border-t border-surface-container-high">
+                                        <button
+                                            type="button"
+                                            onClick={handleLogout}
+                                            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-semibold text-[#ffb4ab] hover:bg-[#3a1d1d] transition-colors cursor-pointer"
+                                        >
+                                            <LogOut className="w-4 h-4 text-[#ffb4ab]" />
+                                            <span>Wyloguj się</span>
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         ) : (
-                            <Link href="/login" className="hover:text-primary transition-all p-1 flex items-center">
+                            <Link
+                                href="/login"
+                                className="hover:text-primary transition-all p-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"
+                            >
                                 <User className="w-5 h-5" />
+                                <span className="hidden sm:inline">Zaloguj</span>
                             </Link>
                         )}
                     </div>
 
-                    <Link href={user ? "/dashboard" : "/login"} className="hidden md:block bg-primary text-on-primary px-6 py-2.5 rounded-lg font-headline font-bold text-sm tracking-wide hover:brightness-110 transition-all scale-95 duration-200 ease-in-out text-center">
+                    <Link
+                        href={bookingHref}
+                        className="hidden md:block bg-primary text-on-primary px-6 py-2.5 rounded-lg font-headline font-bold text-sm tracking-wide hover:brightness-110 transition-all scale-95 duration-200 ease-in-out text-center"
+                    >
                         UMÓW WIZYTĘ
                     </Link>
-                    <button //przycisk rozwijania menu mobilnego
+
+                    <button // przycisk rozwijania menu mobilnego
                         onClick={() => { setIsMobileMenuOpen(!isMobileMenuOpen); setIsMenuOpen(false); }}
                         className="md:hidden text-on-surface/70 hover:text-primary p-1 focus:outline-none cursor-pointer"
                         aria-label="Toggle Mobile Menu"
@@ -156,13 +209,14 @@ export default function NavBar({ user }: NavBarProps) {
                     </button>
                 </div>
             </div>
+
             {/* menu mobilne */}
             {isMobileMenuOpen && (
                 <>
-                    {/* przyciemnianie tła na mobile - menu*/}
-                    <div className="absolute top-full left-0 w-full h-screen bg-black/60 backdrop-blur-sm z-30 md:hidden cursor-pointer" onClick={() => setIsMobileMenuOpen(false)}></div>
+                    {/* przyciemnianie tła na mobile - menu */}
+                    <div className="fixed inset-0 top-16.25 bg-black/60 backdrop-blur-sm z-30 md:hidden cursor-pointer" onClick={() => setIsMobileMenuOpen(false)}></div>
 
-                    {/* nasza lista linków */}
+                    {/* lista linków */}
                     <div className="absolute top-full left-0 w-full bg-[#1c1b1b] border-b border-primary/15 p-4 flex flex-col gap-1.5 z-40 md:hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] animate-in fade-in slide-in-from-top-2 duration-200">
                         <Link className={getMobileLinkClass("/")} href="/" onClick={() => setIsMobileMenuOpen(false)}>STRONA GŁÓWNA</Link>
                         <Link className={getMobileLinkClass("/services")} href="/services" onClick={() => setIsMobileMenuOpen(false)}>USŁUGI</Link>
@@ -170,11 +224,39 @@ export default function NavBar({ user }: NavBarProps) {
                         <Link className={getMobileLinkClass("/portfolio")} href="/portfolio" onClick={() => setIsMobileMenuOpen(false)}>PORTFOLIO</Link>
                         <Link className={getMobileLinkClass("/membership")} href="/membership" onClick={() => setIsMobileMenuOpen(false)}>CZŁONKOSTWO</Link>
 
+                        {user ? (
+                            <div className="pt-2 mt-2 border-t border-outline-variant/15 flex flex-col gap-1">
+                                <Link
+                                    className={getMobileLinkClass("/profile")}
+                                    href="/profile"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    MÓJ PROFIL I WIZYTY
+                                </Link>
+                                <button
+                                    onClick={handleLogout}
+                                    className="w-full text-left py-3 px-4 rounded-xl text-sm font-headline font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2"
+                                >
+                                    <LogOut className="w-4 h-4" /> WYLOGUJ SIĘ
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="pt-2 mt-2 border-t border-outline-variant/15">
+                                <Link
+                                    className={getMobileLinkClass("/login")}
+                                    href="/login"
+                                    onClick={() => setIsMobileMenuOpen(false)}
+                                >
+                                    ZALOGUJ SIĘ
+                                </Link>
+                            </div>
+                        )}
+
                         {/* umow wizyte dla mobile */}
                         <Link
-                            href={user ? "/dashboard" : "/login"}
+                            href={bookingHref}
                             onClick={() => setIsMobileMenuOpen(false)}
-                            className="bg-primary text-on-primary px-6 py-3.5 rounded-xl font-headline font-black text-sm tracking-widest hover:brightness-110 transition-all text-center mt-2 w-full block shadow-lg"
+                            className="bg-primary text-on-primary px-6 py-3.5 rounded-xl font-headline font-black text-sm tracking-widest hover:brightness-110 transition-all text-center mt-3 w-full block shadow-lg"
                         >
                             UMÓW WIZYTĘ
                         </Link>
