@@ -1,4 +1,4 @@
-import { getProfileData } from "./actions";
+import { getProfileData, updateFavoriteBarber } from "./actions"; // upewnij się, że importujesz akcję zapisu
 import { redirect } from "next/navigation";
 import { createGoogleCalendarUrl } from "@/lib/calendar";
 import CancelButton from "./CancelButton";
@@ -15,55 +15,51 @@ import {
     ChevronRight,
 } from "lucide-react";
 
-export default async function ProfilePage() { // funckja do wyświetlania profilu uzytkownika z jego rezerwacjami i statystykami
+/**
+ * ProfilePage to strona profilu użytkownika, która wyświetla informacje o zalogowanym użytkowniku, jego rezerwacjach i preferencjach.
+ * Pobiera dane profilu i rezerwacji użytkownika z bazy danych przy użyciu funkcji getProfileData.
+ * Jeśli użytkownik nie jest zalogowany, następuje przekierowanie do strony logowania.
+ * Strona renderuje sekcje z informacjami o użytkowniku, jego statusie w Fresh Cut, ulubionym stałym barberze, nadchodzących wizytach oraz historii rezerwacji.
+ */
+export default async function ProfilePage() {
     const data = await getProfileData();
 
     if (!data || !data.user) {
         redirect("/login?redirect=/profile");
     }
 
-    const { user, reservations } = data;
+    const { user, reservations, barbers } = data;
     const now = new Date();
 
-    // najbliższa wizyta
     const upcoming = reservations
         .filter((r) => new Date(r.startTime) >= now && r.status !== "CANCELLED")
         .sort((a, b) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime())[0];
 
-    // historia odbytych wizyt
     const pastReservations = reservations.filter((r) => r.id !== upcoming?.id);
 
-    // statystyki: liczba odbytych wizyt
     const completedCount = reservations.filter(
         (r) => r.status === "CONFIRMED" && new Date(r.startTime) < now
     ).length;
 
-    // najczesciej wybierany barber
-    const barberCounts = reservations.reduce((acc: Record<string, { barber: any; count: number }>, res) => {
-        acc[res.barber.id] = acc[res.barber.id] || { barber: res.barber, count: 0 };
-        acc[res.barber.id].count++;
-        return acc;
-    }, {});
-    const favoriteBarber = Object.values(barberCounts).sort((a, b) => b.count - a.count)[0]?.barber;
+    // Pobranie preferowanego barbera z danych użytkownika
+    const favoriteBarber = (user as unknown as { favoriteBarber?: { id: string; name: string; role: string | null; imageUrl: string | null } | null }).favoriteBarber;
 
-    // tworzenie linku do kalendarza google dla nadchodzacej wizyty
-    const upcomingDuration = upcoming?.services.reduce((acc, s) => acc + (s.duration || 30), 0) || 30;
+    const upcomingDuration = upcoming?.services.reduce((acc: number, s: { duration: number }) => acc + (s.duration || 30), 0) || 30;
     const googleCalUrl = upcoming
         ? createGoogleCalendarUrl({
             title: `Wizyta: Fresh Cut (${upcoming.barber.name})`,
-            description: `Usługi: ${upcoming.services.map((s) => s.name).join(", ")}`,
+            description: `Usługi: ${upcoming.services.map((s: { service: { name: string } }) => s.service.name).join(", ")}`,
             location: "Fresh Cut Barbershop",
             startTime: new Date(upcoming.startTime),
             durationMinutes: upcomingDuration,
         })
         : "";
 
-    // sprawdzenie stanu czlonkostwa VIP (do rozszerzenia w przyszlosci)
-    const isVipMember = Boolean((user as any).isVip || (user as any).membershipActive);
+    const userRaw = user as unknown as { isVip?: boolean; membershipActive?: boolean };
+    const isVipMember = Boolean(userRaw.isVip || userRaw.membershipActive);
 
     return (
         <main className="min-h-screen bg-background text-[#e5e2e1] pt-24 pb-32 px-6 max-w-7xl mx-auto">
-            {/* info o uzytkowniku */}
             <section className="mb-12 flex flex-col md:flex-row md:items-end justify-between gap-8">
                 <div className="flex items-center gap-6">
                     <div className="relative">
@@ -94,10 +90,8 @@ export default async function ProfilePage() { // funckja do wyświetlania profil
                     </Link>
                 </div>
             </section>
-
-            {/* statystyki vip */}
+            {/* Sekcja statusu VIP i preferowanego barbera */}
             <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                {/*  */}
                 <div className="md:col-span-7 bg-[#1c1b1b] border border-surface-container-high rounded-xl p-8 flex flex-col justify-between relative overflow-hidden">
                     <Sparkles className="absolute -top-4 -right-4 w-40 h-40 text-primary/5 pointer-events-none" />
                     <div>
@@ -136,16 +130,29 @@ export default async function ProfilePage() { // funckja do wyświetlania profil
                     </div>
                 </div>
 
-                {/* preferowany barber */}
                 <div className="md:col-span-5 bg-[#1c1b1b] border border-surface-container-high rounded-xl p-8 flex flex-col justify-between">
                     <div>
-                        <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#e5e2e1]/40 mb-6 block">
-                            Preferowany Barber
-                        </span>
+                        <div className="flex justify-between items-center mb-6">
+                            <span className="text-xs font-bold uppercase tracking-[0.2em] text-[#e5e2e1]/40">
+                                Preferowany Barber
+                            </span>
+                            {favoriteBarber && (
+                                <form action={async () => {
+                                    "use server";
+                                    await updateFavoriteBarber(null);
+                                }}>
+                                    <button type="submit" className="text-[10px] font-bold uppercase tracking-widest text-red-400 hover:underline cursor-pointer">
+                                        Zmień / Usuń
+                                    </button>
+                                </form>
+                            )}
+                        </div>
+
                         {favoriteBarber ? (
                             <div className="flex items-center gap-4">
                                 <div className="w-16 h-16 rounded-full bg-surface-container-high border border-primary/30 overflow-hidden flex items-center justify-center">
                                     {favoriteBarber.imageUrl ? (
+                                        // eslint-disable-next-line @next/next/no-img-element
                                         <img
                                             src={favoriteBarber.imageUrl}
                                             alt={favoriteBarber.name}
@@ -163,9 +170,42 @@ export default async function ProfilePage() { // funckja do wyświetlania profil
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-sm text-[#e5e2e1]/40 py-2">
-                                Twój profil nie ma jeszcze przypisanego ulubionego barbera.
-                            </p>
+                            <div>
+                                <p className="text-sm text-[#e5e2e1]/60 mb-4">
+                                    Nie masz jeszcze wybranego preferowanego barbera. Wskaż swojego specjalistę, aby system automatycznie zaznaczał go przy rezerwacjach:
+                                </p>
+                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                    {barbers.map((b: { id: string; name: string; role: string | null; imageUrl: string | null }) => (
+                                        <form key={b.id} action={async () => {
+                                            "use server";
+                                            await updateFavoriteBarber(b.id);
+                                        }}>
+                                            <button
+                                                type="submit"
+                                                className="w-full flex items-center justify-between p-2.5 rounded-lg bg-surface-container-high/50 hover:bg-surface-container-high border border-outline-variant/5 transition-all text-left cursor-pointer group"
+                                            >
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-8 h-8 rounded-full bg-background overflow-hidden relative">
+                                                        {b.imageUrl ? (
+                                                            // eslint-disable-next-line @next/next/no-img-element
+                                                            <img src={b.imageUrl} alt={b.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <UserIcon className="w-4 h-4 text-primary m-2" />
+                                                        )}
+                                                    </div>
+                                                    <div>
+                                                        <p className="text-xs font-bold text-on-surface group-hover:text-primary transition-colors">{b.name}</p>
+                                                        <p className="text-[10px] text-on-surface-variant uppercase">{b.role || "Barber"}</p>
+                                                    </div>
+                                                </div>
+                                                <span className="text-[10px] font-bold uppercase tracking-wider text-primary bg-primary/10 px-2 py-1 rounded">
+                                                    Wybierz
+                                                </span>
+                                            </button>
+                                        </form>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                     </div>
                     <Link
@@ -176,7 +216,7 @@ export default async function ProfilePage() { // funckja do wyświetlania profil
                     </Link>
                 </div>
 
-                {/* nastepna wizyta */}
+                {/* Sekcja nadchodzącej wizyty i historii rezerwacji */}
                 <div className="md:col-span-5 bg-primary text-background rounded-xl p-8 flex flex-col justify-between shadow-lg">
                     <div className="space-y-6">
                         <div className="flex justify-between items-start">
@@ -188,7 +228,7 @@ export default async function ProfilePage() { // funckja do wyświetlania profil
                         {upcoming ? (
                             <div>
                                 <h2 className="text-2xl font-extrabold tracking-tight mb-1">
-                                    {upcoming.services.map((s) => s.name).join(" + ")}
+                                    {upcoming.services.map((s: { service: { name: string } }) => s.service.name).join(" + ")}
                                 </h2>
                                 <p className="text-sm font-semibold opacity-90">
                                     {new Date(upcoming.startTime).toLocaleDateString("pl-PL", {
@@ -226,7 +266,6 @@ export default async function ProfilePage() { // funckja do wyświetlania profil
                     )}
                 </div>
 
-                {/* historia wizyt */}
                 <div className="md:col-span-7 bg-[#1c1b1b] border border-surface-container-high rounded-xl p-8 flex flex-col justify-between">
                     <div>
                         <div className="flex justify-between items-center mb-6">
@@ -247,7 +286,7 @@ export default async function ProfilePage() { // funckja do wyświetlania profil
                             <p className="text-sm text-[#e5e2e1]/40 py-10 text-center">Brak wcześniejszych wizyt w historii.</p>
                         ) : (
                             <div className="space-y-4 max-h-72.5 overflow-y-auto pr-2">
-                                {pastReservations.map((res) => {
+                                {pastReservations.map((res: { id: string; status: string; startTime: Date; services: { service: { name: string } }[]; barber: { name: string } }) => {
                                     const isCancelled = res.status === "CANCELLED";
                                     return (
                                         <div
@@ -261,7 +300,7 @@ export default async function ProfilePage() { // funckja do wyświetlania profil
                                                 </div>
                                                 <div>
                                                     <p className="text-sm font-bold">
-                                                        {res.services.map((s) => s.name).join(", ")}
+                                                        {res.services.map((s) => s.service.name).join(", ")}
                                                     </p>
                                                     <p className="text-[10px] text-[#e5e2e1]/40 uppercase tracking-widest">
                                                         {new Date(res.startTime).toLocaleDateString("pl-PL", {
@@ -293,7 +332,7 @@ export default async function ProfilePage() { // funckja do wyświetlania profil
                     </div>
                 </div>
 
-                {/* kafelki na dole (bezpieczenstwo, preferencje, platnosci) */}
+                {/* Sekcja ustawień konta */}
                 <div className="md:col-span-12 mt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <Link
                         href="/profile/security"

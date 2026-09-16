@@ -4,7 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 
-// pobieranie danych profilu uzytkownika z jego rezerwacjami
+/**
+ * Funkcja getProfileData pobiera dane profilu zalogowanego użytkownika oraz jego rezerwacje z bazy danych.
+ * Najpierw sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, zwraca null.
+ * Następnie pobiera dane użytkownika z bazy danych przy użyciu Prisma oraz jego rezerwacje wraz z informacjami o barberze i usługach.
+ * Zwraca obiekt zawierający dane użytkownika i jego rezerwacje.
+ * W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca null.
+ */
 export async function getProfileData() {
     try {
         const supabase = await createClient();
@@ -17,7 +23,7 @@ export async function getProfileData() {
             return null;
         }
 
-        const [dbUser, reservations] = await Promise.all([
+        const [dbUser, reservations, barbers] = await Promise.all([
             prisma.user.findUnique({
                 where: { id: authUser.id },
                 select: {
@@ -25,26 +31,51 @@ export async function getProfileData() {
                     fullName: true,
                     email: true,
                     createdAt: true,
+                    favoriteBarberId: true,
+                    favoriteBarber: {
+                        select: { id: true, name: true, role: true, imageUrl: true }
+                    }
                 },
             }),
             prisma.reservation.findMany({
                 where: { userId: authUser.id },
                 include: {
                     barber: { select: { id: true, name: true, role: true, imageUrl: true } },
-                    services: { select: { id: true, name: true, duration: true, price: true } },
+                    services: {
+                        select: {
+                            id: true,
+                            duration: true,
+                            priceAtBooking: true,
+                            service: {
+                                select: { name: true },
+                            },
+                        },
+                    },
                 },
                 orderBy: { startTime: "desc" },
             }),
+            // Pobieramy aktywnych barberów do wyboru w profilu
+            prisma.barber.findMany({
+                where: { isActive: true },
+                select: { id: true, name: true, role: true, imageUrl: true },
+                orderBy: { name: "asc" }
+            })
         ]);
 
-        return { user: dbUser, reservations };
-    } catch (err: any) {
+        return { user: dbUser, reservations, barbers };
+    } catch (err: unknown) {
         console.error("Błąd getProfileData:", err);
         return null;
     }
 }
 
-// pobieranie rezerwacji przypisanych TYLKO dla zalogowanego użytkownika
+/**
+ *  Funkcja getUserReservations pobiera rezerwacje zalogowanego użytkownika z bazy danych.
+ *  Najpierw sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, zwraca informację o konieczności logowania.
+ *  Następnie pobiera rezerwacje użytkownika wraz z informacjami o barberze i usługach z bazy danych przy użyciu Prisma.
+ *  Zwraca obiekt zawierający status sukcesu oraz dane rezerwacji.
+ *  W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca informację o niepowodzeniu.
+ */
 export async function getUserReservations() {
     try {
         const supabase = await createClient();
@@ -61,19 +92,32 @@ export async function getUserReservations() {
             where: { userId: authUser.id },
             include: {
                 barber: { select: { id: true, name: true, role: true, imageUrl: true } },
-                services: { select: { id: true, name: true, duration: true, price: true } },
+                services: {
+                    select: {
+                        id: true,
+                        duration: true,
+                        priceAtBooking: true,
+                        service: {
+                            select: { name: true },
+                        },
+                    },
+                },
             },
             orderBy: { startTime: "desc" },
         });
 
         return { success: true, data: reservations };
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("Błąd getUserReservations:", err);
         return { success: false, data: [] };
     }
 }
 
-// funkcja do anulowania rezerwacji, z weryfikacja czy rezerwacja należy do zalogowanego użytkownika i czy nie jest za pozno na anulowanie
+/**
+ * Funkcja cancelReservation umożliwia zalogowanemu użytkownikowi anulowanie swojej rezerwacji.
+ * Najpierw sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, zwraca informację o konieczności logowania.
+ * Następnie pobiera rezerwację z bazy danych przy użyciu Prisma i sprawdza, czy użytkownik ma uprawnienia do jej anulowania.
+ */
 export async function cancelReservation(reservationId: string) {
     try {
         const supabase = await createClient();
@@ -86,7 +130,6 @@ export async function cancelReservation(reservationId: string) {
             return { success: false, message: "Musisz być zalogowany." };
         }
 
-        // weryfikacja czy rezerwacja nalezy do zalogowanego użytkownika
         const reservation = await prisma.reservation.findFirst({
             where: {
                 id: reservationId,
@@ -103,7 +146,6 @@ export async function cancelReservation(reservationId: string) {
             return { success: false, message: "Ta rezerwacja została już anulowana." };
         }
 
-        // blokada anulowania rezerwacji na mniej niż 2 godziny przed terminem
         const now = new Date();
         const diffMs = new Date(reservation.startTime).getTime() - now.getTime();
         const diffHours = diffMs / (1000 * 60 * 60);
@@ -120,13 +162,40 @@ export async function cancelReservation(reservationId: string) {
             data: { status: "CANCELLED" },
         });
 
-        // odswiezenie sciezek /profile i /reservations po anulowaniu rezerwacji
         revalidatePath("/profile");
         revalidatePath("/reservations");
 
         return { success: true, message: "Rezerwacja została pomyślnie anulowana." };
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("Błąd cancelReservation:", err);
         return { success: false, message: "Wystąpił błąd podczas anulowania wizyty." };
+    }
+}
+
+/**
+ * Funkcja updateFavoriteBarber pozwala użytkownikowi zmienić lub usunąć swojego domyślnego barbera,
+ * który będzie automatycznie podpowiadany podczas nowej rezerwacji.
+ */
+export async function updateFavoriteBarber(barberId: string | null) {
+    try {
+        const supabase = await createClient();
+        const { data: { user: authUser }, error: authError } = await supabase.auth.getUser();
+
+        if (authError || !authUser) {
+            return { success: false, message: "Musisz być zalogowany." };
+        }
+
+        await prisma.user.update({
+            where: { id: authUser.id },
+            data: { favoriteBarberId: barberId },
+        });
+
+        revalidatePath("/profile");
+        revalidatePath("/reservations");
+
+        return { success: true, message: "Zaktualizowano preferowanego barbera." };
+    } catch (err: unknown) {
+        console.error("Błąd updateFavoriteBarber:", err);
+        return { success: false, message: "Wystąpił błąd podczas zapisu." };
     }
 }

@@ -7,7 +7,13 @@ interface PageProps {
     searchParams: Promise<{ id?: string }>;
 }
 
-export default async function ReservationSuccessPage(props: PageProps) { //funkcja do wyświetlania szczegolow rezerwacji
+/**
+ * Strona ReservationSuccessPage wyświetla szczegóły potwierdzonej rezerwacji dla użytkownika.
+ * Pobiera dane rezerwacji z bazy danych przy użyciu Prisma i renderuje je w responsywnym układzie.
+ * Jeśli rezerwacja nie istnieje lub brak identyfikatora, wyświetlany jest odpowiedni komunikat.
+ * Strona umożliwia użytkownikowi powrót do kalendarza rezerwacji lub na stronę główną.
+ */
+export default async function ReservationSuccessPage(props: PageProps) {
     const searchParams = await props.searchParams;
     const id = searchParams?.id;
 
@@ -37,9 +43,13 @@ export default async function ReservationSuccessPage(props: PageProps) { //funkc
             services: {
                 select: {
                     id: true,
-                    name: true,
-                    price: true,
+                    priceAtBooking: true,
                     duration: true,
+                    service: {
+                        select: {
+                            name: true,
+                        },
+                    },
                 },
             },
         },
@@ -59,7 +69,7 @@ export default async function ReservationSuccessPage(props: PageProps) { //funkc
         );
     }
 
-    const totalPrice = reservation.services.reduce((acc, s) => acc + s.price, 0);
+    const totalPrice = Number(reservation.totalPrice);
     const totalDuration = reservation.services.reduce((acc, s) => acc + s.duration, 0);
     const formattedDate = format(new Date(reservation.startTime), "EEEE, d MMMM yyyy", { locale: pl });
     const formattedTime = format(new Date(reservation.startTime), "HH:mm");
@@ -98,6 +108,7 @@ export default async function ReservationSuccessPage(props: PageProps) { //funkc
                     </div>
 
                     <div className="flex items-center gap-3 border-b border-surface-container-highest/50 pb-4">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                             src={reservation.barber.imageUrl}
                             alt={reservation.barber.name}
@@ -115,10 +126,10 @@ export default async function ReservationSuccessPage(props: PageProps) { //funkc
                     <div>
                         <span className="text-xs text-on-surface-variant/70 block mb-2">Wybrane usługi</span>
                         <div className="space-y-2">
-                            {reservation.services.map((service) => (
-                                <div key={service.id} className="flex justify-between items-center text-sm">
-                                    <span className="text-on-surface">{service.name}</span>
-                                    <span className="font-semibold text-on-surface-variant">{service.price} zł</span>
+                            {reservation.services.map((item) => (
+                                <div key={item.id} className="flex justify-between items-center text-sm">
+                                    <span className="text-on-surface">{item.service.name}</span>
+                                    <span className="font-semibold text-on-surface-variant">{Number(item.priceAtBooking)} zł</span>
                                 </div>
                             ))}
                         </div>

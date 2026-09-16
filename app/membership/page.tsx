@@ -1,6 +1,36 @@
 import Newsletter from '../components/newsletter';
+import Image from 'next/image';
+import Link from 'next/link';
+import { createClient } from '@/utils/supabase/server';
+import { prisma } from '@/lib/prisma';
 
-export default function MembershipPage() {
+// Cache na 24h - oszczędza połączenia z bazą (Connection Pool)
+export const revalidate = 86400;
+
+
+/**
+ * Strona z planami subskrypcji.
+ * Wyświetla dostępne plany subskrypcji i umożliwia wybór jednego z nich.
+ * Pobiera dane o planach z bazy danych przy użyciu Prisma i renderuje je w responsywnym układzie.
+ * Jeśli użytkownik jest zalogowany, kliknięcie przycisku "Wybierz" przekierowuje go do strony checkout z odpowiednim planem.
+ * Jeśli użytkownik nie jest zalogowany, kliknięcie przycisku "Wybierz" przekierowuje go do strony logowania z parametrem redirect do checkout.
+ */
+export default async function MembershipPage() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const plans = await prisma.membershipPlan.findMany({
+        where: { isActive: true },
+        orderBy: { price: 'asc' }
+    });
+
+    const getCheckoutUrl = (planName: string) => {
+        const query = planName.toLowerCase();
+        return user
+            ? `/checkout?plan=${query}`
+            : `/login?redirect=/checkout?plan=${query}`;
+    };
+
     return (
         <div className="bg-background text-on-surface font-body min-h-screen w-full overflow-x-hidden selection:bg-primary selection:text-on-primary">
 
@@ -32,105 +62,55 @@ export default function MembershipPage() {
             <section className="px-8 lg:px-20 max-w-350 mx-auto mb-12">
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-stretch">
 
-                    {/* plan 1 - fresh */}
-                    <div className="bg-surface-container-low p-8 md:p-10 rounded-2xl relative group flex flex-col justify-between h-full hover:bg-surface-container-high transition-all duration-300 border border-outline-variant/10">
-                        <div>
-                            <h3 className="font-headline text-3xl font-black uppercase tracking-tight mb-2">Fresh</h3>
-                            <p className="text-primary text-4xl font-black mb-6">
-                                149 PLN <span className="text-sm text-on-surface-variant font-normal tracking-normal uppercase">/ msc</span>
-                            </p>
-                            <ul className="space-y-4 mb-10">
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface">1x Strzyżenie włosów + stylizacja</span>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface">1x Szybkie odświeżenie (podgolenie karku/boków)</span>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface-variant">Rabat -5% na wszystkie kosmetyki</span>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface-variant">Kawa, zimne piwo lub whisky w cenie</span>
-                                </li>
-                            </ul>
-                        </div>
-                        <button className="cursor-pointer w-full py-4 bg-transparent border-2 border-outline-variant text-on-surface font-bold uppercase tracking-widest hover:border-primary hover:text-primary transition-all active:scale-95">
-                            Wybierz Fresh
-                        </button>
-                    </div>
+                    {plans.map((plan) => {
+                        const isPopular = plan.isPopular;
 
-                    {/* plan 2- sharp */}
-                    <div className="bg-surface-container-high p-8 md:p-10 rounded-2xl relative group flex flex-col justify-between h-full border-2 border-primary shadow-[0_20px_50px_rgba(233,193,118,0.1)] lg:scale-105 z-10">
-                        <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-4 py-1.5 font-bold text-xs uppercase tracking-widest whitespace-nowrap shadow-lg">
-                            Najczęściej Wybierany
-                        </div>
-                        <div>
-                            <h3 className="font-headline text-3xl font-black uppercase tracking-tight mb-2">Sharp</h3>
-                            <p className="text-primary text-5xl font-black mb-6">
-                                219 PLN <span className="text-sm text-on-surface-variant font-normal tracking-normal uppercase">/ msc</span>
-                            </p>
-                            <ul className="space-y-4 mb-10">
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface">1x Pełny Serwis (Włosy + Broda)</span>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface">1x Szybkie odświeżenie (podgolenie karku/boków)</span>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface">Rabat -10% na wszystkie kosmetyki</span>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface">Kawa, zimne piwo lub whisky w cenie</span>
-                                </li>
-                            </ul>
-                        </div>
-                        <button className="cursor-pointer w-full py-4 bg-primary text-on-primary font-black uppercase tracking-widest hover:bg-primary/90 transition-all active:scale-95 shadow-[0_10px_20px_rgba(233,193,118,0.2)]">
-                            Wybierz Sharp
-                        </button>
-                    </div>
+                        // wyrenderowany plan
+                        return (
+                            <div
+                                key={plan.id}
+                                className={`p-8 md:p-10 rounded-2xl relative group flex flex-col justify-between h-full transition-all duration-300 border ${isPopular
+                                    ? "bg-surface-container-high border-2 border-primary shadow-[0_20px_50px_rgba(233,193,118,0.1)] lg:scale-105 z-10"
+                                    : "bg-surface-container-low hover:bg-surface-container-high border-outline-variant/10"
+                                    }`}
+                            >
+                                {isPopular && (
+                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-4 py-1.5 font-bold text-xs uppercase tracking-widest whitespace-nowrap shadow-lg">
+                                        Najczęściej Wybierany
+                                    </div>
+                                )}
 
-                    {/* plan 3 - prime*/}
-                    <div className="bg-surface-container-low p-8 md:p-10 rounded-2xl relative group flex flex-col justify-between h-full hover:bg-surface-container-high transition-all duration-300 border border-outline-variant/10">
-                        <div>
-                            <h3 className="font-headline text-3xl font-black uppercase tracking-tight mb-2">Prime</h3>
-                            <p className="text-primary text-4xl font-black mb-6">
-                                399 PLN <span className="text-sm text-on-surface-variant font-normal tracking-normal uppercase">/ msc</span>
-                            </p>
-                            <ul className="space-y-4 mb-10">
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface">2x Pełny Serwis (Włosy + Broda)</span>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface">Mycie z masażem głowy i gorący ręcznik do każdego cięcia</span>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface-variant">Wybrany kosmetyk gratis co 2 miesiące</span>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface-variant">Rabat -15% na wszystkie kosmetyki</span>
-                                </li>
-                                <li className="flex items-start gap-3">
-                                    <span className="text-primary font-bold">✓</span>
-                                    <span className="text-base text-on-surface-variant">Kawa, zimne piwo lub whisky w cenie</span>
-                                </li>
-                            </ul>
-                        </div>
-                        <button className="cursor-pointer w-full py-4 bg-transparent border-2 border-outline-variant text-on-surface font-bold uppercase tracking-widest hover:border-primary hover:text-primary transition-all active:scale-95">
-                            Wybierz Prime
-                        </button>
-                    </div>
+                                <div>
+                                    <h3 className="font-headline text-3xl font-black uppercase tracking-tight mb-2">
+                                        {plan.name}
+                                    </h3>
+                                    <p className={`text-5xl font-black mb-6 ${isPopular ? "text-primary" : "text-primary text-4xl"}`}>
+                                        {plan.price} PLN <span className="text-sm text-on-surface-variant font-normal tracking-normal uppercase">/ {plan.interval}</span>
+                                    </p>
+                                    <ul className="space-y-4 mb-10">
+                                        {plan.features.map((feature, idx) => (
+                                            <li key={idx} className="flex items-start gap-3">
+                                                <span className="text-primary font-bold">✓</span>
+                                                <span className={`text-base ${isPopular || idx < 2 ? "text-on-surface" : "text-on-surface-variant"}`}>
+                                                    {feature}
+                                                </span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+
+                                <Link
+                                    href={getCheckoutUrl(plan.name)}
+                                    className={`block text-center cursor-pointer w-full py-4 font-bold uppercase tracking-widest transition-all active:scale-95 ${isPopular
+                                        ? "bg-primary text-on-primary hover:bg-primary/90 shadow-[0_10px_20px_rgba(233,193,118,0.2)]"
+                                        : "bg-transparent border-2 border-outline-variant text-on-surface hover:border-primary hover:text-primary"
+                                        }`}
+                                >
+                                    Wybierz {plan.name}
+                                </Link>
+                            </div>
+                        );
+                    })}
 
                 </div>
             </section>
@@ -145,7 +125,7 @@ export default function MembershipPage() {
                             <span className="text-primary">CZŁONKOSTWO?</span>
                         </h2>
                         <p className="font-body text-on-surface-variant text-lg mb-12 max-w-lg leading-relaxed">
-                            Bycie w klubie to nie tylko regularne cięcie. To oszczędność kasy, brak stresu o wolne terminy przed weekendem i stały dostęp do najlepszych kosmetyków na Twojej półce.
+                            Bycie w klubie to nie tylko regularne cięcie. To oszczędność kasy, brak stresu o wolne terminy przed weekendem i stały dostęp do najlepszych kosmetyków na Twojej półce po stawkach hurtowych.
                         </p>
 
                         <div className="flex flex-col gap-10">
@@ -171,16 +151,29 @@ export default function MembershipPage() {
                     </div>
 
                     <div className="order-1 lg:order-2 grid grid-cols-2 gap-6">
-                        <div className="aspect-4/5 bg-surface-container-highest rounded-xl overflow-hidden mt-12 shadow-2xl">
-                            <img className="w-full h-full object-cover grayscale brightness-75 hover:grayscale-0 transition-all duration-500" src="images/membership/membership1.webp" alt="Kosmetyki" />
+                        <div className="relative aspect-4/5 bg-surface-container-highest rounded-xl overflow-hidden mt-12 shadow-2xl">
+                            <Image
+                                fill
+                                sizes="(max-width: 768px) 50vw, 30vw"
+                                className="object-cover grayscale brightness-75 hover:grayscale-0 transition-all duration-500"
+                                src="/images/membership/membership1.webp"
+                                alt="Kosmetyki barberskie na półce"
+                            />
                         </div>
-                        <div className="aspect-4/5 bg-surface-container-highest rounded-xl overflow-hidden shadow-2xl">
-                            <img className="w-full h-full object-cover grayscale brightness-75 hover:grayscale-0 transition-all duration-500" src="images/membership/membership2.webp" alt="Detal strzyżenia" />
+                        <div className="relative aspect-4/5 bg-surface-container-highest rounded-xl overflow-hidden shadow-2xl">
+                            <Image
+                                fill
+                                sizes="(max-width: 768px) 50vw, 30vw"
+                                className="object-cover grayscale brightness-75 hover:grayscale-0 transition-all duration-500"
+                                src="/images/membership/membership2.webp"
+                                alt="Detal strzyżenia i wykończenia"
+                            />
                         </div>
                     </div>
 
                 </div>
             </section>
+
             <Newsletter />
         </div>
     );

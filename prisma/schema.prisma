@@ -28,15 +28,19 @@ model User {
   phonePrefix  String        @default("+48")
   phoneBody    String
   role         Role          @default(USER)
+  favoriteBarberId     String?
+  favoriteBarber       Barber?         @relation(fields: [favoriteBarberId], references: [id], onDelete: SetNull)
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @default(now()) @updatedAt
   reservations Reservation[]
   reviews      Review[]
+
 }
 
 model Barber {
   id           String           @id @default(cuid())
   name         String
+  isActive     Boolean  @default(true)
   role         String?
   bio          String?
   imageUrl     String
@@ -47,27 +51,60 @@ model Barber {
   reviews      Review[]
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @default(now()) @updatedAt
+  profile      BarberProfile? 
+  portfolio    PortfolioItem[]
+  preferredByUsers User[]
+}
+
+model BarberProfile {
+  id          String   @id @default(cuid())
+  barberId    String   @unique
+  barber      Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  bookingName String?  // "adamA"
+  quote       String?  
+  fullBio     String?  
+  specialties String[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PortfolioItem {
+  id        String   @id @default(cuid())
+  barberId  String
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  imageUrl  String
+  createdAt DateTime @default(now())
+}
+
+enum ServiceCategory {
+  HAIR
+  BEARD
+  COMBO
+  CARE
 }
 
 model Service {
-  id           String        @id @default(cuid())
-  name         String
-  description  String
-  price        Int
-  duration     Int           // czas w minutach
-  imageUrl     String?
+  id          String          @id @default(cuid())
+  name        String
+  category    ServiceCategory @default(HAIR)
+  description String
+  price       Decimal         @db.Decimal(10, 2)
+  duration    Int             // czas trwania uslugi
+  bufferTime  Int             @default(15) // dodatkowy czas na sprzetanie etc..
+  imageUrl    String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  reservations ReservationService[]
   barbers      Barber[]
-  reservations Reservation[]
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @default(now()) @updatedAt
 }
 
 model BarberSchedule {
   id        String   @id @default(cuid())
   barberId  String
   dayOfWeek Int      // 1 = poniedzialek, 5 = piatek etc
-  startTime String   // 08:00
-  endTime   String   // 16:00
+  startMinute Int      // minuty od polnocy: 480  = 08:00
+  endMinute   Int      // minuty od polnocy: 960  = 16:00
   isWorking Boolean  @default(true)
   barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
@@ -85,6 +122,8 @@ model BarberDayOff {
   barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([barberId, startDate, endDate])
 }
 
 enum PaymentMethod {
@@ -99,18 +138,41 @@ enum PaymentStatus {
 }
 
 model Reservation {
-  id            String            @id @default(cuid())
-  startTime     DateTime
-  status        ReservationStatus @default(CONFIRMED)
-  paymentMethod PaymentMethod     @default(ON_SITE)
-  paymentStatus PaymentStatus     @default(PENDING)
+  id            String               @id @default(cuid())
   userId        String
   barberId      String
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  barber        Barber            @relation(fields: [barberId], references: [id], onDelete: Cascade)
-  services      Service[]
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @default(now()) @updatedAt
+  startTime     DateTime
+  endTime       DateTime             // startTime + duration + bufferTime
+  totalPrice    Decimal              @db.Decimal(10, 2)
+  status        ReservationStatus    @default(CONFIRMED)
+  paymentMethod PaymentMethod        @default(ON_SITE)
+  paymentStatus PaymentStatus        @default(PENDING)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @default(now()) @updatedAt
+
+  user          User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  barber        Barber               @relation(fields: [barberId], references: [id], onDelete: Restrict)
+  services      ReservationService[]
+
+  @@index([barberId, status, startTime, endTime])
+  @@index([userId, startTime])
+}
+
+// tabela laczaca zamrazajaca ceny i czas z momentu odbywania wizyty
+
+model ReservationService {
+  id            String      @id @default(cuid())
+  reservationId String
+  serviceId     String
+  priceAtBooking Decimal    @db.Decimal(10, 2)
+  duration      Int
+  bufferTime    Int
+
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  service       Service     @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@unique([reservationId, serviceId])
+  @@index([serviceId])
 }
 
 model Review {
@@ -119,8 +181,23 @@ model Review {
   comment   String?
   userId    String
   barberId  String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+
+  @@index([barberId])
+}
+
+model MembershipPlan {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  price       Int
+  interval    String   @default("msc")
+  features    String[]
+  isPopular   Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

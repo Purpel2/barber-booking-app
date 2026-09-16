@@ -1,7 +1,11 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-//funkcja tworzaca klienta supabase z obsluga ciasteczek do pracy po stronie serwera 
+
+/**
+ * Funkcja createClient tworzy instancję klienta Supabase przeznaczoną dla środowiska serwerowego,
+ * wykorzystując zmienne środowiskowe oraz bezpieczny dostęp do magazynu ciasteczek (cookies) Next.js.
+ */
 export async function createClient() {
     const cookieStore = await cookies()
 
@@ -11,23 +15,17 @@ export async function createClient() {
         {
             cookies: {
                 //pobieranie ciasteczek z zapytania
-                get(name: string) {
-                    return cookieStore.get(name)?.value
+                getAll() {
+                    return cookieStore.getAll()
                 },
                 //ustawienie ciasteczek
-                set(name: string, value: string, options: CookieOptions) {
+                setAll(cookiesToSet) {
                     try {
-                        cookieStore.set({ name, value, ...options })
-                    } catch (error) {
-                        //obslugiwane przez proxy.ts
-                    }
-                },
-                //usuwanie ciasteczek
-                remove(name: string, options: CookieOptions) {
-                    try {
-                        cookieStore.set({ name, value: '', ...options })
-                    } catch (error) {
-                        //obslugiwane przez proxy.ts
+                        cookiesToSet.forEach(({ name, value, options }) =>
+                            cookieStore.set(name, value, options)
+                        )
+                    } catch {
+                        //obslugiwane przez proxy.ts / server component
                     }
                 },
             },

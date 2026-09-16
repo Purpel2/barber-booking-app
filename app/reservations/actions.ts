@@ -4,9 +4,17 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 
-export async function getBarbers() { //pobieranie barberow z bazy
+/**
+ * Funkcja getBarbers pobiera listę aktywnych barberów z bazy danych przy użyciu Prisma.
+ * Zwraca obiekt zawierający status sukcesu oraz dane barberów w przypadku powodzenia.
+ * W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca pustą listę barberów.
+ * Funkcja jest używana w kontekście serwera (server-side) i może być wywoływana w komponentach serwera lub w akcjach serwera.
+ * W przypadku powodzenia, zwracane dane zawierają identyfikator, imię, rolę i adres URL zdjęcia każdego barbera.
+ */
+export async function getBarbers() {
     try {
         const barbers = await prisma.barber.findMany({
+            where: { isActive: true },
             select: {
                 id: true,
                 name: true,
@@ -16,13 +24,20 @@ export async function getBarbers() { //pobieranie barberow z bazy
             orderBy: { name: "asc" },
         });
         return { success: true, data: barbers };
-    } catch (err) {
+    } catch (err: unknown) {
         console.error("Błąd getBarbers:", err);
         return { success: false, data: [] };
     }
 }
 
-export async function getAllServicesWithBarbers() { //pobieranie uslug (powiązanych z barberami) z bazy
+/**
+ * Funkcja getAllServicesWithBarbers pobiera listę wszystkich usług dostępnych w systemie wraz z przypisanymi barberami.
+ * Zwraca obiekt zawierający status sukcesu oraz dane usług w przypadku powodzenia.
+ * W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca pustą listę usług.
+ * Funkcja jest używana w kontekście serwera (server-side) i może być wywoływana w komponentach serwera lub w akcjach serwera.
+ * W przypadku powodzenia, zwracane dane zawierają identyfikator, nazwę, cenę, kategorię oraz listę przypisanych barberów dla każdej usługi.
+ */
+export async function getAllServicesWithBarbers() {
     try {
         const services = await prisma.service.findMany({
             include: {
@@ -34,16 +49,30 @@ export async function getAllServicesWithBarbers() { //pobieranie uslug (powiąza
                     },
                 },
             },
-            orderBy: { price: "asc" },
+            orderBy: { duration: "desc" },
         });
-        return { success: true, data: services };
-    } catch (err) {
+
+        const formatted = services.map((s) => ({
+            ...s,
+            price: Number(s.price),
+            category: s.category,
+        }));
+
+        return { success: true, data: formatted };
+    } catch (err: unknown) {
         console.error("Błąd getAllServicesWithBarbers:", err);
         return { success: false, data: [] };
     }
 }
 
-export async function getBarberDayDetails( //pobieranie szczegolow dnia pracy barbera (dostepne terminy, urlopy, rezerwacje)
+/**
+ * Funkcja getBarberDayDetails pobiera szczegóły dnia pracy barbera, w tym dostępne sloty godzinowe, na podstawie podanego identyfikatora barbera i daty.
+ * Zwraca obiekt zawierający status sukcesu, informacje o dostępności barbera, powód niedostępności (jeśli dotyczy), listę wszystkich slotów godzinowych oraz listę niedostępnych slotów.
+ * W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca obiekt z informacją o błędzie serwera.
+ * Funkcja jest używana w kontekście serwera (server-side) i może być wywoływana w komponentach serwera lub w akcjach serwera.
+ * W przypadku powodzenia, zwracane dane zawierają informacje o tym, czy barber jest dostępny w danym dniu, powód niedostępności (jeśli dotyczy), listę wszystkich slotów godzinowych oraz listę niedostępnych slotów.
+ */
+export async function getBarberDayDetails(
     barberId: string,
     dateStr: string,
     requiredDuration: number = 30
@@ -51,13 +80,14 @@ export async function getBarberDayDetails( //pobieranie szczegolow dnia pracy ba
     try {
         const [y, m, d] = dateStr.split("-").map(Number);
         const targetDate = new Date(y, m - 1, d, 12, 0, 0);
-        const dayOfWeek = targetDate.getDay();
+        const rawDay = targetDate.getDay();
+        const dayOfWeek = rawDay === 0 ? 7 : rawDay;
 
-        if (dayOfWeek === 0 || dayOfWeek === 6) { // 0= niedziela  6 = sobota
+        if (dayOfWeek === 7) {
             return {
                 success: true,
                 isWorking: false,
-                reason: "Salon nieczynny w weekendy",
+                reason: "Salon nieczynny w niedziele",
                 slots: [],
                 unavailableSlots: [],
             };
@@ -80,16 +110,11 @@ export async function getBarberDayDetails( //pobieranie szczegolow dnia pracy ba
             };
         }
 
-        const startTimeStr = schedule?.startTime || "08:00";
-        const endTimeStr = schedule?.endTime || "18:00";
-
-        const [openH, openM] = startTimeStr.split(":").map(Number);
-        const [closeH, closeM] = endTimeStr.split(":").map(Number);
-        const workStart = openH * 60 + openM;
-        const workEnd = closeH * 60 + closeM;
+        const workStart = schedule?.startMinute ?? 480;
+        const workEnd = schedule?.endMinute ?? 960;
 
         const allSlots: string[] = [];
-        for (let t = workStart; t < workEnd; t += 30) {
+        for (let t = workStart; t < workEnd; t += 15) {
             const h = Math.floor(t / 60).toString().padStart(2, "0");
             const min = (t % 60).toString().padStart(2, "0");
             allSlots.push(`${h}:${min}`);
@@ -116,8 +141,7 @@ export async function getBarberDayDetails( //pobieranie szczegolow dnia pracy ba
             };
         }
 
-        // pobranie rezerwacji barbera na dany dzien (z uwzglednieniem czasu trwania uslug)
-        const reservations = await (prisma.reservation.findMany as any)({
+        const reservations = await prisma.reservation.findMany({
             where: {
                 barberId,
                 startTime: {
@@ -127,27 +151,29 @@ export async function getBarberDayDetails( //pobieranie szczegolow dnia pracy ba
                 status: { not: "CANCELLED" },
             },
             include: {
-                services: { select: { duration: true } },
+                services: { select: { duration: true, bufferTime: true } },
             },
         });
 
-        const busyRanges = reservations.map((res: any) => { // obliczanie zajetych przedzialow czasowych na podstawie rezerwacji
+        const busyRanges = reservations.map((res) => {
             const resTime = new Date(res.startTime);
             const startMin = resTime.getUTCHours() * 60 + resTime.getUTCMinutes();
-            const dur = res.services?.reduce((max: number, s: any) => Math.max(max, s.duration || 30), 30) || 30;
+
+            const baseDur = res.services?.reduce((sum, s) => sum + (s.duration || 30), 0) || 30;
+            const maxBuf = res.services?.reduce((max, s) => Math.max(max, s.bufferTime || 0), 0) || 0;
+
             return {
                 start: startMin,
-                end: startMin + dur,
+                end: startMin + baseDur + maxBuf,
             };
         });
 
-        // sprawdzenie dostepnosci slotow w zaleznosci od czasu trwania uslug i rezerwacji
         const unavailableSlots: string[] = [];
         const slotsUnavailableByDuration: string[] = [];
         const slotsUnavailableByReservation: string[] = [];
         const durationNeeded = requiredDuration > 0 ? requiredDuration : 30;
 
-        for (let t = workStart; t < workEnd; t += 30) {
+        for (let t = workStart; t < workEnd; t += 15) {
             const h = Math.floor(t / 60).toString().padStart(2, "0");
             const min = (t % 60).toString().padStart(2, "0");
             const timeStr = `${h}:${min}`;
@@ -162,19 +188,17 @@ export async function getBarberDayDetails( //pobieranie szczegolow dnia pracy ba
             }
 
             const hasConflict = busyRanges.some(
-                (busy: { start: number; end: number }) => reqStart < busy.end && reqEnd > busy.start
+                (busy) => reqStart < busy.end && reqEnd > busy.start
             );
 
             if (hasConflict) {
                 unavailableSlots.push(timeStr);
 
-                // sprawdzenie czy konflikt jest przez wybrany czas trwania uslug czy przez rezerwacje
-                const minEndTime = t + 30;
+                const minEndTime = t + 15;
                 const hasConflictWithMinDuration = busyRanges.some(
-                    (busy: { start: number; end: number }) => reqStart < busy.end && minEndTime > busy.start
+                    (busy) => reqStart < busy.end && minEndTime > busy.start
                 );
 
-                //jesli przez wybrany czas trwania uslug, dodajemy do slotsUnavailableByDuration, jesli przez rezerwacje, dodajemy do slotsUnavailableByReservation
                 if (!hasConflictWithMinDuration) {
                     slotsUnavailableByDuration.push(timeStr);
                 } else {
@@ -192,7 +216,7 @@ export async function getBarberDayDetails( //pobieranie szczegolow dnia pracy ba
             slotsUnavailableByDuration,
             slotsUnavailableByReservation,
         };
-    } catch (err) {
+    } catch (err: unknown) {
         console.error("Błąd getBarberDayDetails:", err);
         return {
             success: false,
@@ -204,7 +228,12 @@ export async function getBarberDayDetails( //pobieranie szczegolow dnia pracy ba
     }
 }
 
-export async function getMonthCalendarData( // pobieranie danych kalendarza miesiecznego dla barbera
+/**
+ * Funkcja getMonthCalendarData pobiera dane kalendarza dla danego barbera w określonym miesiącu i roku.
+ * Zwraca obiekt zawierający informacje o zajętości dni w danym miesiącu.
+ * W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca pusty obiekt.
+ */
+export async function getMonthCalendarData(
     barberId: string,
     year: number,
     month: number
@@ -212,7 +241,7 @@ export async function getMonthCalendarData( // pobieranie danych kalendarza mies
     try {
         const result: { [day: number]: number | null } = {};
 
-        const schedules = await prisma.barberSchedule.findMany({ // pobranie harmonogramu barbera dla wszystkich dni tygodnia
+        const schedules = await prisma.barberSchedule.findMany({
             where: { barberId },
         });
         const scheduleMap = new Map(schedules.map((s) => [s.dayOfWeek, s]));
@@ -221,7 +250,7 @@ export async function getMonthCalendarData( // pobieranie danych kalendarza mies
         const monthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
         const monthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
 
-        const allDaysOff = await prisma.barberDayOff.findMany({ //pobranie wsszystkich dni wolnych barbera w danym miesiacu
+        const allDaysOff = await prisma.barberDayOff.findMany({
             where: {
                 barberId,
                 startDate: { lte: monthEnd },
@@ -229,7 +258,7 @@ export async function getMonthCalendarData( // pobieranie danych kalendarza mies
             },
         });
 
-        const allReservations = await (prisma.reservation.findMany as any)({ //pobranie wszystkich rezerwacji barbera w danym miesiacu
+        const allReservations = await prisma.reservation.findMany({
             where: {
                 barberId,
                 startTime: {
@@ -239,12 +268,12 @@ export async function getMonthCalendarData( // pobieranie danych kalendarza mies
                 status: { not: "CANCELLED" },
             },
             include: {
-                services: { select: { duration: true } },
+                services: { select: { duration: true, bufferTime: true } },
             },
         });
 
-        //  mapowanie rezerwacji wedlug dnia miesiaca
-        const reservationsByDay = new Map<number, any[]>();
+        type ReservationWithServices = typeof allReservations[number];
+        const reservationsByDay = new Map<number, ReservationWithServices[]>();
         for (const res of allReservations) {
             const day = new Date(res.startTime).getUTCDate();
             if (!reservationsByDay.has(day)) {
@@ -253,25 +282,22 @@ export async function getMonthCalendarData( // pobieranie danych kalendarza mies
             reservationsByDay.get(day)!.push(res);
         }
 
-        //  iteracja przez wszystkie dni miesiaca i obliczanie procentu zapełnienia
         for (let day = 1; day <= lastDay; day++) {
             const date = new Date(year, month - 1, day);
-            const dayOfWeek = date.getDay();
+            const rawDay = date.getDay();
+            const dayOfWeek = rawDay === 0 ? 7 : rawDay;
 
-            // sprawdzenie czy jest weekend
-            if (dayOfWeek === 0 || dayOfWeek === 6) {
+            if (dayOfWeek === 7) {
                 result[day] = null;
                 continue;
             }
 
-            // sprawdzenie harmonogramu barbera by okreslic dostepnosc barbera w danym dniu
             const schedule = scheduleMap.get(dayOfWeek);
             if (schedule && !schedule.isWorking) {
                 result[day] = null;
                 continue;
             }
 
-            // sprawdzeenie czy barber jest na urlopie w danym dniu
             const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
             const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
@@ -284,37 +310,31 @@ export async function getMonthCalendarData( // pobieranie danych kalendarza mies
                 continue;
             }
 
-            // obliczanie procentu zapełnienia na podstawie harmonogramu i rezerwacji
-            const startTimeStr = schedule?.startTime || "08:00";
-            const endTimeStr = schedule?.endTime || "18:00";
-
-            const [openH, openM] = startTimeStr.split(":").map(Number);
-            const [closeH, closeM] = endTimeStr.split(":").map(Number);
-            const workStart = openH * 60 + openM;
-            const workEnd = closeH * 60 + closeM;
-
-            const totalSlots = Math.ceil((workEnd - workStart) / 30);
+            const workStart = schedule?.startMinute ?? 480;
+            const workEnd = schedule?.endMinute ?? 960;
+            const totalSlots = Math.ceil((workEnd - workStart) / 15);
 
             const dayReservations = reservationsByDay.get(day) || [];
-
-            const busyRanges = dayReservations.map((res: any) => {
+            const busyRanges = dayReservations.map((res) => {
                 const resTime = new Date(res.startTime);
                 const startMin = resTime.getUTCHours() * 60 + resTime.getUTCMinutes();
-                const dur = res.services?.reduce((max: number, s: any) => Math.max(max, s.duration || 30), 30) || 30;
+                const dur = res.services?.reduce(
+                    (sum, s) => sum + (s.duration || 30) + (s.bufferTime || 0),
+                    0
+                ) || 30;
                 return {
                     start: startMin,
                     end: startMin + dur,
                 };
             });
 
-            // liczenie liczby zajetych slotow w danym dniu 
             let bookedSlots = 0;
-            for (let t = workStart; t < workEnd; t += 30) {
+            for (let t = workStart; t < workEnd; t += 15) {
                 const reqStart = t;
-                const reqEnd = t + 30;
+                const reqEnd = t + 15;
 
                 const hasConflict = busyRanges.some(
-                    (busy: { start: number; end: number }) => reqStart < busy.end && reqEnd > busy.start
+                    (busy) => reqStart < busy.end && reqEnd > busy.start
                 );
 
                 if (hasConflict) {
@@ -322,19 +342,23 @@ export async function getMonthCalendarData( // pobieranie danych kalendarza mies
                 }
             }
 
-            // obliczanie procentu zapełnienia i przypisanie do wyniku
             const occupancyPercent = totalSlots > 0 ? Math.round((bookedSlots / totalSlots) * 100) : 0;
             result[day] = occupancyPercent;
         }
 
         return result;
-    } catch (err) {
+    } catch (err: unknown) {
         console.error("Błąd getMonthCalendarData:", err);
         return {};
     }
 }
 
-export async function createReservation(data: { // funkcja do tworzenia rezerwacji w bazie danych
+/**
+ * Funkcja createReservation tworzy nową rezerwację dla zalogowanego użytkownika na podstawie podanych danych, takich jak data, czas, identyfikatory usług, identyfikator barbera i metoda płatności.
+ * Funkcja najpierw sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, zwraca informację o konieczności logowania.
+ * Następnie pobiera dane użytkownika z bazy danych przy użyciu Prisma i sprawdza, czy wybrano usługi do rezerwacji.
+ */
+export async function createReservation(data: {
     date: string;
     time: string;
     serviceIds: string[];
@@ -342,7 +366,6 @@ export async function createReservation(data: { // funkcja do tworzenia rezerwac
     paymentMethod: "ON_SITE" | "ONLINE";
 }) {
     try {
-        // autoryzacja po stronie serwera przez sesję supabase
         const supabase = await createClient();
         const {
             data: { user: authUser },
@@ -357,7 +380,6 @@ export async function createReservation(data: { // funkcja do tworzenia rezerwac
             };
         }
 
-        // pobranie zalogowanego usera z bazy
         const dbUser = await prisma.user.findUnique({
             where: { id: authUser.id },
             select: { id: true },
@@ -375,25 +397,26 @@ export async function createReservation(data: { // funkcja do tworzenia rezerwac
             return { success: false, message: "Nie wybrano żadnej usługi." };
         }
 
-        // obliczenie calkowitego czasu trwania wybranych uslug
         const selectedServices = await prisma.service.findMany({
             where: { id: { in: data.serviceIds } },
-            select: { duration: true },
+            select: { id: true, duration: true, price: true, bufferTime: true },
         });
 
         const totalDuration = selectedServices.reduce((acc, s) => acc + (s.duration || 30), 0);
+        const maxBuffer = selectedServices.reduce((acc, s) => Math.max(acc, s.bufferTime || 0), 0);
+        const totalPrice = selectedServices.reduce((acc, s) => acc + Number(s.price || 0), 0);
 
         const [y, m, d] = data.date.split("-").map(Number);
         const [h, min] = data.time.split(":").map(Number);
         const reservationDateTime = new Date(Date.UTC(y, m - 1, d, h, min, 0));
-        const reservationEndTime = new Date(reservationDateTime.getTime() + totalDuration * 60 * 1000);
+
+        const reservationEndTime = new Date(reservationDateTime.getTime() + (totalDuration + maxBuffer) * 60 * 1000);
 
         const startOfDay = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
         const endOfDay = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
 
         const isOnline = data.paymentMethod === "ONLINE";
 
-        // transakcja w bazie danych aby sprawdzic czy wybrany termin jest nadal dostepny i jesli tak, zapisac rezerwacje w bazie
         const reservation = await prisma.$transaction(async (tx) => {
             const existingReservations = await tx.reservation.findMany({
                 where: {
@@ -405,7 +428,7 @@ export async function createReservation(data: { // funkcja do tworzenia rezerwac
                     },
                 },
                 include: {
-                    services: { select: { duration: true } },
+                    services: { select: { duration: true, bufferTime: true } },
                 },
             });
 
@@ -413,10 +436,10 @@ export async function createReservation(data: { // funkcja do tworzenia rezerwac
             const reqEnd = reservationEndTime.getTime();
 
             for (const res of existingReservations) {
-                // startujemy od 0, a jesli rezerwacja nie ma uslug, defaultowo przyjmujemy 30 min
                 const rawDuration = res.services.reduce((acc, s) => acc + (s.duration || 30), 0);
-                const resDuration = rawDuration > 0 ? rawDuration : 30;
+                const maxBuf = res.services.reduce((acc, s) => Math.max(acc, s.bufferTime || 0), 0);
 
+                const resDuration = (rawDuration > 0 ? rawDuration : 30) + maxBuf;
                 const resStart = new Date(res.startTime).getTime();
                 const resEnd = resStart + resDuration * 60 * 1000;
 
@@ -425,17 +448,23 @@ export async function createReservation(data: { // funkcja do tworzenia rezerwac
                 }
             }
 
-            // insert rezerwacji do bazy danych z powiązaniem do testowego użytkownika, barbera, uslug
             return await tx.reservation.create({
                 data: {
                     startTime: reservationDateTime,
+                    endTime: reservationEndTime,
+                    totalPrice: totalPrice,
                     userId: dbUser.id,
                     barberId: data.barberId,
                     paymentMethod: data.paymentMethod,
                     paymentStatus: isOnline ? "PAID" : "PENDING",
                     status: "CONFIRMED",
                     services: {
-                        connect: data.serviceIds.map((id) => ({ id })),
+                        create: selectedServices.map((service) => ({
+                            service: { connect: { id: service.id } },
+                            priceAtBooking: service.price,
+                            duration: service.duration || 30,
+                            bufferTime: service.bufferTime ?? 15,
+                        })),
                     },
                 },
                 select: { id: true },
@@ -449,11 +478,12 @@ export async function createReservation(data: { // funkcja do tworzenia rezerwac
             message: isOnline ? "Opłacono pomyślnie (symulacja)!" : "Rezerwacja potwierdzona!",
             reservationId: reservation.id,
         };
-    } catch (err: any) {
+    } catch (err: unknown) {
         console.error("BŁĄD BAZY createReservation:", err);
+        const errorObject = err as { message?: string };
         return {
             success: false,
-            message: err?.message || "Wystąpił błąd podczas zapisu rezerwacji."
+            message: errorObject?.message || "Wystąpił błąd podczas zapisu rezerwacji.",
         };
     }
 }

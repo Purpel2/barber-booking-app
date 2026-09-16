@@ -1,4 +1,14 @@
-export function createGoogleCalendarUrl(params: { // funkcja do tworzenia linku do dodania terminu do kalendarza gogle
+/**
+ * Funkcja createGoogleCalendarUrl generuje URL do utworzenia wydarzenia w Google Calendar na podstawie podanych parametrów, takich jak tytuł, opis, lokalizacja, czas rozpoczęcia i czas trwania wydarzenia.
+ * 
+ * @param params - Obiekt zawierający parametry wydarzenia:
+ *   - title: Tytuł wydarzenia
+ *   - description: Opis wydarzenia
+ *   - location: Lokalizacja wydarzenia
+ *   - startTime: Czas rozpoczęcia wydarzenia
+ *   - durationMinutes: Czas trwania wydarzenia w minutach
+ */
+export function createGoogleCalendarUrl(params: {
     title: string;
     description: string;
     location: string;

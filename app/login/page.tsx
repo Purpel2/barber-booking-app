@@ -3,14 +3,30 @@
 import { useState } from "react";
 import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { loginUser } from "../actions/auth";
 import { toast } from "react-hot-toast";
+import Image from "next/image";
 
-export default function LoginPage() { //stan pokazania hasla oraz ewentualnego bledu logowania
+/**
+ * Strona logowania do aplikacji.
+ * Umożliwia użytkownikowi zalogowanie się do konta przy użyciu adresu email i hasła.
+ * Po poprawnym zalogowaniu użytkownik jest przekierowany na stronę określoną w parametrze "redirect" lub na stronę główną.
+ * Zawiera również opcję logowania przez Google i Apple (niedostępne na razie) oraz link do rejestracji nowego konta.
+ * Obsługuje błędy logowania i wyświetla odpowiednie komunikaty.
+ */
+export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false); //przelaczanie widocznosci hasła
     const [error, setError] = useState<string | null>(null); //przechowywanie bledu logowania
+    const searchParams = useSearchParams();
 
-    //funkcja logowania wywolywana przez submit - resetuje blad, wywoluje loginUser, a nastepnie ustawia blad lub przekierowuje na strone glowna
+    // pobranie parametru redirect z URL, jesli istnieje i jest poprawny, ustawienie go jako docelowego URL po zalogowaniu, w przeciwnym razie ustawienie domyslnego URL na "/"
+    const rawRedirect = searchParams.get("redirect");
+    const targetUrl = rawRedirect && rawRedirect.startsWith("/") && !rawRedirect.startsWith("//")
+        ? rawRedirect
+        : "/";
+
+    // funkcja handleSubmit obsługuje logowanie użytkownika po przesłaniu formularza. Wysyła dane do funkcji loginUser, a następnie obsługuje wynik logowania, wyświetlając odpowiednie komunikaty o błędach lub sukcesie.
     async function handleSubmit(formData: FormData) {
         setError(null);
 
@@ -34,7 +50,7 @@ export default function LoginPage() { //stan pokazania hasla oraz ewentualnego b
                 },
             });
             setTimeout(() => {
-                window.location.href = "/";
+                window.location.href = targetUrl;
             }, 800);
         }
     }
@@ -44,10 +60,13 @@ export default function LoginPage() { //stan pokazania hasla oraz ewentualnego b
             {/* tło + gradient */}
             <div className="fixed inset-0 z-0">
                 <div className="absolute inset-0 bg-linear-to-b from-background/40 via-background/80 to-background z-10"></div>
-                <img
+                <Image
                     alt="login background"
-                    className="w-full h-full object-cover filter grayscale brightness-[0.3]"
                     src="/images/login_bg.webp"
+                    fill
+                    priority
+                    sizes="100vw"
+                    className="object-cover filter grayscale brightness-[0.3]"
                 />
             </div>
 
