@@ -82,15 +82,17 @@ export default function ServicesView({ services, isLoggedIn }: ServicesViewProps
                                 key={service.id}
                                 className="group flex flex-col bg-[#161616] rounded-2xl overflow-hidden border border-surface-container-high hover:border-primary/40 transition-all duration-300 shadow-xl hover:-translate-y-1"
                             >
-                                <div className="relative h-60 w-full overflow-hidden bg-[#201f1f]">
-                                    <Image
-                                        src={service.imageUrl || "/images/placeholder.webp"}
-                                        alt={service.name}
-                                        fill
-                                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-                                        className="object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500"
-                                    />
-                                    <div className="absolute inset-0 bg-linear-to-t from-[#161616] via-transparent to-transparent opacity-80" />
+                                <div className="relative h-60 w-full overflow-hidden rounded-t-2xl bg-[#201f1f] transform-gpu">
+                                    <div className="absolute inset-0 w-full h-full overflow-hidden transform-gpu">
+                                        <Image
+                                            src={service.imageUrl || "/images/placeholder.webp"}
+                                            alt={service.name}
+                                            fill
+                                            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                                            className="object-cover grayscale-65 group-hover:grayscale-0 group-hover:scale-105 transition-all duration-500 transform-gpu"
+                                        />
+                                    </div>
+                                    <div className="absolute inset-x-0 -bottom-1 h-10 bg-linear-to-t from-[#161616] via-[#161616]/10 to-transparent pointer-events-none z-10" />
                                 </div>
 
                                 <div className="p-6 flex flex-col grow">
