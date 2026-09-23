@@ -27,8 +27,8 @@ export default async function MembershipPage() {
     const getCheckoutUrl = (planName: string) => {
         const query = planName.toLowerCase();
         return user
-            ? `/checkout?plan=${query}`
-            : `/login?redirect=/checkout?plan=${query}`;
+            ? `/membership/checkout?plan=${query}`
+            : `/login?redirect=/membership/checkout?plan=${query}`;
     };
 
     return (
@@ -65,7 +65,6 @@ export default async function MembershipPage() {
                     {plans.map((plan) => {
                         const isPopular = plan.isPopular;
 
-                        // wyrenderowany plan
                         return (
                             <div
                                 key={plan.id}
