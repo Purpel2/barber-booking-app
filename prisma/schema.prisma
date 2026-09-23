@@ -54,6 +54,7 @@ model Barber {
   profile      BarberProfile? 
   portfolio    PortfolioItem[]
   preferredByUsers User[]
+  dayOverrides  BarberDayOverride[]
 }
 
 model BarberProfile {
@@ -124,6 +125,20 @@ model BarberDayOff {
   updatedAt DateTime @default(now()) @updatedAt
 
   @@index([barberId, startDate, endDate])
+}
+
+model BarberDayOverride {
+  id          String   @id @default(cuid())
+  barberId    String
+  barber      Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  date        String   // Format "YYYY-MM-DD", np. "2026-10-10"
+  startMinute Int      // Np. 480 (8:00)
+  endMinute   Int      // Np. 960 (16:00)
+  isWorking   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([barberId, date])
 }
 
 enum PaymentMethod {

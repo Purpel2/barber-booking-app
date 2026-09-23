@@ -237,9 +237,9 @@ export async function getMonthCalendarData(
     barberId: string,
     year: number,
     month: number
-): Promise<{ [day: number]: number | null }> {
+): Promise<Record<string, number | null>> {
     try {
-        const result: { [day: number]: number | null } = {};
+        const result: Record<string, number | null> = {};
 
         const schedules = await prisma.barberSchedule.findMany({
             where: { barberId },
@@ -249,6 +249,21 @@ export async function getMonthCalendarData(
         const lastDay = new Date(year, month, 0).getDate();
         const monthStart = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
         const monthEnd = new Date(Date.UTC(year, month, 0, 23, 59, 59, 999));
+
+        const formattedMonth = String(month).padStart(2, '0');
+        const startDateStr = `${year}-${formattedMonth}-01`;
+        const endDateStr = `${year}-${formattedMonth}-${String(lastDay).padStart(2, '0')}`;
+
+        const dayOverrides = await prisma.barberDayOverride.findMany({
+            where: {
+                barberId,
+                date: {
+                    gte: startDateStr,
+                    lte: endDateStr,
+                },
+            },
+        });
+        const overrideMap = new Map(dayOverrides.map((o) => [o.date, o]));
 
         const allDaysOff = await prisma.barberDayOff.findMany({
             where: {
@@ -283,18 +298,55 @@ export async function getMonthCalendarData(
         }
 
         for (let day = 1; day <= lastDay; day++) {
+            const formattedDay = String(day).padStart(2, '0');
+            const dateString = `${year}-${formattedMonth}-${formattedDay}`;
+
             const date = new Date(year, month - 1, day);
             const rawDay = date.getDay();
             const dayOfWeek = rawDay === 0 ? 7 : rawDay;
 
-            if (dayOfWeek === 7) {
-                result[day] = null;
+            const override = overrideMap.get(dateString);
+
+            if (override) {
+                if (!override.isWorking) {
+                    result[dateString] = null;
+                    continue;
+                }
+                const workStart = override.startMinute;
+                const workEnd = override.endMinute;
+                const totalSlots = Math.ceil((workEnd - workStart) / 15);
+
+                const dayReservations = reservationsByDay.get(day) || [];
+                const busyRanges = dayReservations.map((res) => {
+                    const resTime = new Date(res.startTime);
+                    const startMin = resTime.getUTCHours() * 60 + resTime.getUTCMinutes();
+                    const dur = res.services?.reduce(
+                        (sum, s) => sum + (s.duration || 30) + (s.bufferTime || 0),
+                        0
+                    ) || 30;
+                    return { start: startMin, end: startMin + dur };
+                });
+
+                let bookedSlots = 0;
+                for (let t = workStart; t < workEnd; t += 15) {
+                    if (busyRanges.some((busy) => t < busy.end && t + 15 > busy.start)) {
+                        bookedSlots++;
+                    }
+                }
+
+                result[dateString] = totalSlots > 0 ? Math.round((bookedSlots / totalSlots) * 100) : 0;
+                continue;
+            }
+
+            // Domyślne weekendy (Niedziela=7, Sobota=6)
+            if (dayOfWeek === 7 || dayOfWeek === 6) {
+                result[dateString] = null;
                 continue;
             }
 
             const schedule = scheduleMap.get(dayOfWeek);
             if (schedule && !schedule.isWorking) {
-                result[day] = null;
+                result[dateString] = null;
                 continue;
             }
 
@@ -306,7 +358,7 @@ export async function getMonthCalendarData(
             );
 
             if (dayOff) {
-                result[day] = null;
+                result[dateString] = null;
                 continue;
             }
 
@@ -322,28 +374,17 @@ export async function getMonthCalendarData(
                     (sum, s) => sum + (s.duration || 30) + (s.bufferTime || 0),
                     0
                 ) || 30;
-                return {
-                    start: startMin,
-                    end: startMin + dur,
-                };
+                return { start: startMin, end: startMin + dur };
             });
 
             let bookedSlots = 0;
             for (let t = workStart; t < workEnd; t += 15) {
-                const reqStart = t;
-                const reqEnd = t + 15;
-
-                const hasConflict = busyRanges.some(
-                    (busy) => reqStart < busy.end && reqEnd > busy.start
-                );
-
-                if (hasConflict) {
+                if (busyRanges.some((busy) => t < busy.end && t + 15 > busy.start)) {
                     bookedSlots++;
                 }
             }
 
-            const occupancyPercent = totalSlots > 0 ? Math.round((bookedSlots / totalSlots) * 100) : 0;
-            result[day] = occupancyPercent;
+            result[dateString] = totalSlots > 0 ? Math.round((bookedSlots / totalSlots) * 100) : 0;
         }
 
         return result;

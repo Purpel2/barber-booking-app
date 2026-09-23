@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, User, LogOut, Settings, CalendarDays, ChevronDown, Menu, X } from "lucide-react";
+import { Bell, User, LogOut, Settings, CalendarDays, ChevronDown, Menu, X, CreditCard } from "lucide-react";
 import { logoutUser } from "../actions/auth";
 
 interface NavBarProps {
@@ -14,6 +14,9 @@ interface NavBarProps {
     } | null;
 }
 
+/**
+ * Komponent NavBar renderuje pasek nawigacyjny z linkami do różnych sekcji strony, menu użytkownika oraz przyciskiem do umawiania wizyt.
+ */
 export default function NavBar({ user }: NavBarProps) {
     const [isMenuOpen, setIsMenuOpen] = useState(false); // stan menu uzytkownika - otwarte/zamkniete
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // stan menu mobilnego - otwarte/zamkniete
@@ -145,7 +148,7 @@ export default function NavBar({ user }: NavBarProps) {
 
                                 {/* dropdown */}
                                 <div
-                                    className={`absolute right-0 mt-2 w-52 rounded-xl bg-[#1c1b1b] border border-surface-container-high shadow-2xl p-1.5 z-50 transition-all duration-150 ease-out origin-top-right ${isMenuOpen
+                                    className={`absolute right-0 mt-2 w-56 rounded-xl bg-[#1c1b1b] border border-surface-container-high shadow-2xl p-1.5 z-50 transition-all duration-150 ease-out origin-top-right ${isMenuOpen
                                         ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                                         : "opacity-0 scale-95 -translate-y-2 pointer-events-none"
                                         }`}
@@ -156,12 +159,30 @@ export default function NavBar({ user }: NavBarProps) {
                                             onClick={() => setIsMenuOpen(false)}
                                             className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-[#e5e2e1]/80 hover:text-primary hover:bg-surface-container-high transition-colors"
                                         >
-                                            <CalendarDays className="w-4 h-4 text-[#e5e2e1]/50" />
-                                            <span>Moje wizyty i profil</span>
+                                            <User className="w-4 h-4 text-[#e5e2e1]/50" />
+                                            <span>Mój profil</span>
                                         </Link>
 
                                         <Link
-                                            href="/profile/security"
+                                            href="/profile/appointments"
+                                            onClick={() => setIsMenuOpen(false)}
+                                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-[#e5e2e1]/80 hover:text-primary hover:bg-surface-container-high transition-colors"
+                                        >
+                                            <CalendarDays className="w-4 h-4 text-[#e5e2e1]/50" />
+                                            <span>Moje wizyty</span>
+                                        </Link>
+
+                                        <Link
+                                            href="/profile/subscription"
+                                            onClick={() => setIsMenuOpen(false)}
+                                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-[#e5e2e1]/80 hover:text-primary hover:bg-surface-container-high transition-colors"
+                                        >
+                                            <CreditCard className="w-4 h-4 text-[#e5e2e1]/50" />
+                                            <span>Subskrypcje i rozliczenia</span>
+                                        </Link>
+
+                                        <Link
+                                            href="/profile/settings"
                                             onClick={() => setIsMenuOpen(false)}
                                             className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-[#e5e2e1]/80 hover:text-primary hover:bg-surface-container-high transition-colors"
                                         >
@@ -226,16 +247,13 @@ export default function NavBar({ user }: NavBarProps) {
 
                         {user ? (
                             <div className="pt-2 mt-2 border-t border-outline-variant/15 flex flex-col gap-1">
-                                <Link
-                                    className={getMobileLinkClass("/profile")}
-                                    href="/profile"
-                                    onClick={() => setIsMobileMenuOpen(false)}
-                                >
-                                    MÓJ PROFIL I WIZYTY
-                                </Link>
+                                <Link className={getMobileLinkClass("/profile")} href="/profile" onClick={() => setIsMobileMenuOpen(false)}>MÓJ PROFIL</Link>
+                                <Link className={getMobileLinkClass("/profile/appointments")} href="/profile/appointments" onClick={() => setIsMobileMenuOpen(false)}>MOJE WIZYTY</Link>
+                                <Link className={getMobileLinkClass("/profile/subscription")} href="/profile/subscription" onClick={() => setIsMobileMenuOpen(false)}>SUBSKRYPCJE I ROZLICZENIA</Link>
+                                <Link className={getMobileLinkClass("/profile/settings")} href="/profile/settings" onClick={() => setIsMobileMenuOpen(false)}>USTAWIENIA KONTA</Link>
                                 <button
                                     onClick={handleLogout}
-                                    className="w-full text-left py-3 px-4 rounded-xl text-sm font-headline font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2"
+                                    className="w-full text-left py-3 px-4 rounded-xl text-sm font-headline font-bold text-red-400 hover:bg-red-500/10 transition-all flex items-center gap-2 cursor-pointer mt-1"
                                 >
                                     <LogOut className="w-4 h-4" /> WYLOGUJ SIĘ
                                 </button>

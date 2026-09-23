@@ -60,6 +60,7 @@ function BookingContent() {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const summaryRef = useRef<HTMLDivElement>(null);
+    const calendarSectionRef = useRef<HTMLDivElement>(null);
 
     const [barbers, setBarbers] = useState<BarberItem[]>([]);
     const [selectedBarberId, setSelectedBarberId] = useState<string>("");
@@ -68,14 +69,16 @@ function BookingContent() {
     const [selectedServices, setSelectedServices] = useState<ServiceWithBarbers[]>([]);
     const [activeCategory, setActiveCategory] = useState<string>("ALL");
 
+    const [isLoadingSlots, setIsLoadingSlots] = useState<boolean>(false);
     const [selectedDate, setSelectedDate] = useState<Date>(getInitialBookingDate);
+    const [visibleMonth, setVisibleMonth] = useState<Date>(new Date());
     const [availableSlots, setAvailableSlots] = useState<string[]>([]);
     const [bookedTimes, setBookedTimes] = useState<string[]>([]);
     const [slotsUnavailableByDuration, setSlotsUnavailableByDuration] = useState<string[]>([]);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
     const [isWorkingDay, setIsWorkingDay] = useState<boolean>(true);
     const [offReason, setOffReason] = useState<string | null>(null);
-    const [calendarData, setCalendarData] = useState<{ [day: number]: number | null }>({});
+    const [calendarData, setCalendarData] = useState<Record<string, number | null>>({});
     const [paymentMethod, setPaymentMethod] = useState<"ON_SITE" | "ONLINE">("ONLINE");
 
     const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
@@ -84,9 +87,6 @@ function BookingContent() {
     const requiredBlock = totalDuration + maxBuffer;
     const currentBarber = barbers.find((b) => b.id === selectedBarberId);
 
-    // Wyciągnięte zmienne dat do zależności w useEffect
-    const year = selectedDate.getFullYear();
-    const month = selectedDate.getMonth();
     const dateStr = format(selectedDate, "yyyy-MM-dd");
 
     useEffect(() => {
@@ -117,15 +117,31 @@ function BookingContent() {
     useEffect(() => {
         if (!selectedBarberId) return;
         async function loadCalendarData() {
-            const data = await getMonthCalendarData(selectedBarberId, year, month + 1);
-            setCalendarData(data);
+            const baseYear = visibleMonth.getFullYear();
+            const baseMonth = visibleMonth.getMonth() + 1;
+
+            let combinedData: Record<string, number | null> = {};
+
+            for (let i = 0; i < 3; i++) {
+                let targetMonth = baseMonth + i;
+                let targetYear = baseYear;
+                if (targetMonth > 12) {
+                    targetMonth -= 12;
+                    targetYear += 1;
+                }
+                const data = await getMonthCalendarData(selectedBarberId, targetYear, targetMonth);
+                combinedData = { ...combinedData, ...data };
+            }
+
+            setCalendarData(combinedData);
         }
         loadCalendarData();
-    }, [selectedBarberId, year, month]);
+    }, [selectedBarberId, visibleMonth]);
 
     useEffect(() => {
         if (!selectedBarberId || !selectedDate) return;
         async function loadDayDetails() {
+            setIsLoadingSlots(true);
             const res = await getBarberDayDetails(selectedBarberId, dateStr, requiredBlock || 30);
             if (res.success) {
                 setIsWorkingDay(res.isWorking);
@@ -135,9 +151,32 @@ function BookingContent() {
                 setSlotsUnavailableByDuration(res.slotsUnavailableByDuration || []);
                 if (selectedTime && res.unavailableSlots.includes(selectedTime)) setSelectedTime(null);
             }
+            setIsLoadingSlots(false);
         }
         loadDayDetails();
-    }, [selectedBarberId, dateStr, requiredBlock, selectedTime, selectedDate]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedBarberId, selectedDate]);
+
+    useEffect(() => {
+        if (!selectedBarberId || !selectedDate) return;
+        async function updateSlotDurations() {
+            const res = await getBarberDayDetails(selectedBarberId, dateStr, requiredBlock || 30);
+            if (res.success) {
+                setSlotsUnavailableByDuration(res.slotsUnavailableByDuration || []);
+                if (selectedTime && res.unavailableSlots.includes(selectedTime)) setSelectedTime(null);
+            }
+        }
+        updateSlotDurations();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [requiredBlock]);
+
+    useEffect(() => {
+        if (selectedTime && selectedServices.length > 0) {
+            setTimeout(() => {
+                summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+            }, 100);
+        }
+    }, [selectedTime, selectedServices]);
 
     const toggleService = (service: ServiceWithBarbers) => {
         const isOffered = selectedBarberId ? service.barbers.some((b) => b.id === selectedBarberId) : true;
@@ -157,13 +196,24 @@ function BookingContent() {
                 newSelection = newSelection.filter(s => s.category !== "COMBO" && s.category !== "HAIR" && s.category !== "BEARD");
             }
 
-            return [...newSelection, service];
+            const updated = [...newSelection, service];
+
+            if (selectedTime && updated.length > 0) {
+                setTimeout(() => {
+                    summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+                }, 100);
+            }
+
+            return updated;
         });
     };
 
     const handleSelectTime = (time: string) => {
-        setSelectedTime(time);
-        setTimeout(() => summaryRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
+        if (selectedTime === time) {
+            setSelectedTime(null);
+        } else {
+            setSelectedTime(time);
+        }
     };
 
     const handleBooking = async (e?: React.FormEvent) => {
@@ -212,6 +262,13 @@ function BookingContent() {
                                     setSelectedBarberId(barber.id);
                                     setSelectedServices((prev) => prev.filter((s) => s.barbers.some((b) => b.id === barber.id)));
                                     setSelectedTime(null);
+
+                                    requestAnimationFrame(() => {
+                                        calendarSectionRef.current?.scrollIntoView({
+                                            behavior: "smooth",
+                                            block: "start"
+                                        });
+                                    });
                                 }}
                                 className={`p-3.5 rounded-2xl flex items-center gap-4 cursor-pointer border transition-all ${isSelected
                                     ? "bg-primary/10 border-primary shadow-lg shadow-primary/10"
@@ -235,57 +292,156 @@ function BookingContent() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <div className="lg:col-span-6 xl:col-span-5 lg:sticky lg:top-24 bg-background rounded-2xl p-6 shadow-2xl relative border border-surface-container-highest/50">
-                    {!selectedBarberId ? (
-                        <div className="h-64 flex flex-col items-center justify-center text-center p-6 opacity-60">
-                            <span className="text-4xl mb-4">✂️</span>
-                            <h3 className="font-bold text-lg mb-2">Wybierz specjalistę</h3>
-                            <p className="text-sm">Aby zobaczyć dostępne terminy, musisz najpierw wybrać barbera z listy powyżej.</p>
+                <div className="lg:col-span-6 xl:col-span-5 space-y-6 lg:sticky lg:top-24 scroll-mt-24">
+                    <div ref={calendarSectionRef} className="bg-background rounded-2xl p-6 shadow-2xl relative border border-surface-container-highest/50">
+                        {!selectedBarberId ? (
+                            <div className="h-64 flex flex-col items-center justify-center text-center p-6 opacity-60">
+                                <span className="text-4xl mb-4">✂️</span>
+                                <h3 className="font-bold text-lg mb-2">Wybierz specjalistę</h3>
+                                <p className="text-sm">Aby zobaczyć dostępne terminy, musisz najpierw wybrać barbera z listy powyżej.</p>
+                            </div>
+                        ) : (
+                            <DayPicker
+                                mode="single"
+                                selected={selectedDate}
+                                onSelect={(date) => { if (date) setSelectedDate(date); }}
+                                month={visibleMonth}
+                                onMonthChange={setVisibleMonth}
+                                locale={pl}
+                                showOutsideDays={false}
+                                disabled={[
+                                    { before: new Date() },
+                                    (date) => {
+                                        const day = date.getDay();
+                                        const dateKey = format(date, "yyyy-MM-dd");
+                                        const val = calendarData[dateKey];
+
+                                        if (day === 0 || day === 6) return true;
+                                        if (val === null) return true;
+
+                                        return false;
+                                    }
+                                ]}
+                                modifiers={{
+                                    dayOff: (date) => {
+                                        const day = date.getDay();
+                                        const dateKey = format(date, "yyyy-MM-dd");
+                                        const val = calendarData[dateKey];
+                                        if (day === 0 || day === 6) return true;
+                                        return val === null;
+                                    },
+                                    occupancyHigh: (date) => {
+                                        const val = calendarData[format(date, "yyyy-MM-dd")];
+                                        return val !== undefined && val !== null && val >= 80;
+                                    },
+                                    occupancyMediumHigh: (date) => {
+                                        const val = calendarData[format(date, "yyyy-MM-dd")];
+                                        return val !== undefined && val !== null && val >= 60 && val < 80;
+                                    },
+                                    occupancyMediumLow: (date) => {
+                                        const val = calendarData[format(date, "yyyy-MM-dd")];
+                                        return val !== undefined && val !== null && val >= 40 && val < 60;
+                                    },
+                                    occupancyLow: (date) => {
+                                        const val = calendarData[format(date, "yyyy-MM-dd")];
+                                        return val !== undefined && val !== null && val >= 20 && val < 40;
+                                    },
+                                    occupancyEmpty: (date) => {
+                                        const day = date.getDay();
+                                        const dateKey = format(date, "yyyy-MM-dd");
+                                        const val = calendarData[dateKey];
+                                        if (day === 0 || day === 6) return false;
+                                        return val !== undefined && val !== null && val < 20;
+                                    },
+                                }}
+                                modifiersClassNames={{
+                                    dayOff: "!text-red-400 !opacity-80 line-through bg-red-500/10 !rounded-xl pointer-events-none",
+                                    occupancyHigh: "occupancy-high",
+                                    occupancyMediumHigh: "occupancy-medium-high",
+                                    occupancyMediumLow: "occupancy-medium-low",
+                                    occupancyLow: "occupancy-low",
+                                    occupancyEmpty: "occupancy-empty",
+                                }}
+                                classNames={{
+                                    root: "w-full",
+                                    months: "w-full",
+                                    month: "space-y-4 w-full",
+                                    month_caption: "flex justify-center pt-1 relative items-center mb-4 w-full",
+                                    caption_label: "text-2xl font-['Epilogue'] font-bold capitalize text-[#e5e2e1]",
+                                    nav: "space-x-1 flex items-center absolute right-0 left-0 justify-between px-2 pointer-events-none",
+                                    button_previous: "p-2 rounded-lg bg-[#353534] hover:bg-[#393939] transition-colors text-[#e9c176] pointer-events-auto cursor-pointer z-10",
+                                    button_next: "p-2 rounded-lg bg-[#353534] hover:bg-[#393939] transition-colors text-[#e9c176] pointer-events-auto cursor-pointer z-10",
+                                    month_grid: "w-full border-collapse space-y-1",
+                                    weekdays: "grid grid-cols-7 gap-1 text-center mb-3 w-full",
+                                    weekday: "text-xs uppercase tracking-wider text-[#c4c7c7] font-semibold w-full [&:nth-child(6)]:text-red-400 [&:nth-child(7)]:text-red-400",
+                                    week: "grid grid-cols-7 gap-1 w-full mt-2",
+                                    day: "h-12 xl:h-14 flex items-center justify-center p-0.5 relative focus-within:relative focus-within:z-20 w-full",
+                                    day_button: "h-full w-full flex items-center justify-center text-base cursor-pointer hover:bg-[#353534] rounded-xl transition-all",
+                                    selected: "!bg-[#e9c176] !text-[#412d00] font-bold shadow-md shadow-[#e9c176]/20 scale-105 hover:bg-[#e9c176] !rounded-xl",
+                                    outside: "invisible pointer-events-none",
+                                    disabled: "!bg-transparent text-[#c4c7c7]/20 opacity-30 cursor-not-allowed hover:bg-transparent line-through pointer-events-none",
+                                }}
+                            />
+                        )}
+                    </div>
+                    {selectedBarberId && (
+                        <div className="bg-background rounded-2xl p-6 shadow-xl border border-surface-container-highest/50 animate-in fade-in slide-in-from-top-2">
+                            <div className="flex justify-between items-center mb-4">
+                                <div>
+                                    <h4 className="text-xs font-['Inter'] uppercase tracking-widest text-primary">Godzina wizyty</h4>
+                                    <p className="text-xs text-on-surface-variant/70 mt-1">
+                                        {selectedServices.length > 0 ? (
+                                            <>Czas wybranej usługi: <span className="text-primary font-semibold">{totalDuration} min</span></>
+                                        ) : (
+                                            <span className="italic text-on-surface-variant/50">Wybierz godzinę lub najpierw zaznacz usługi</span>
+                                        )}
+                                    </p>
+                                </div>
+                                {!isWorkingDay && <span className="text-xs text-[#f87171] font-medium">{offReason}</span>}
+                            </div>
+
+                            {isLoadingSlots ? (
+                                <div className="py-8 flex flex-col items-center justify-center text-center opacity-70 space-y-2">
+                                    <span className="text-2xl animate-spin">⏳</span>
+                                    <p className="text-xs text-on-surface-variant font-medium">Wczytuję dostępne godziny...</p>
+                                </div>
+                            ) : availableSlots.length === 0 ? (
+                                <p className="text-sm text-[#f87171] py-2">{offReason || "Brak wolnych terminów w tym dniu."}</p>
+                            ) : (
+                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
+                                    {availableSlots.map((time) => {
+                                        const isBooked = bookedTimes.includes(time);
+                                        const isUnavailableByDuration = slotsUnavailableByDuration.includes(time);
+                                        const isSelected = selectedTime === time;
+
+                                        return (
+                                            <div key={time} className="relative group">
+                                                <button
+                                                    disabled={isBooked}
+                                                    onClick={() => handleSelectTime(time)}
+                                                    className={`py-3 px-2 rounded-xl transition-all font-semibold border text-sm flex items-center justify-center w-full relative ${isSelected
+                                                        ? "bg-primary text-on-primary border-primary shadow-lg shadow-primary/20 scale-[1.02] font-bold ring-2 ring-primary/50"
+                                                        : isBooked
+                                                            ? "bg-[#252424]/40 text-on-surface-variant/20 border-transparent cursor-not-allowed line-through select-none"
+                                                            : isUnavailableByDuration
+                                                                ? "bg-[#2b2a2a]/60 text-[#e5e2e1]/50 border-orange-400/30 hover:border-orange-400 cursor-pointer"
+                                                                : "bg-[#2b2a2a] text-[#e5e2e1] border-outline-variant/40 hover:border-primary hover:bg-surface-container-highest cursor-pointer"
+                                                        }`}
+                                                >
+                                                    {time}
+                                                    {isUnavailableByDuration && <span className="absolute top-0.5 right-0.5 text-orange-400 text-xs leading-none">⏱️</span>}
+                                                </button>
+                                                {isUnavailableByDuration && (
+                                                    <div className="absolute left-1/2 -translate-x-1/2 -top-14 bg-surface-container-highest text-on-surface text-xs px-3 py-2 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-surface-container-highest shadow-xl">
+                                                        Zbyt krótki przedział czasowy na wybrane usługi
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
-                    ) : (
-                        <DayPicker
-                            mode="single"
-                            selected={selectedDate}
-                            onSelect={(date) => { if (date) setSelectedDate(date); }}
-                            locale={pl}
-                            showOutsideDays={false}
-                            disabled={[{ dayOfWeek: [0, 6] }, { before: new Date() }]}
-                            modifiers={{
-                                weekend: { dayOfWeek: [0, 6] },
-                                occupancyHigh: (date) => (calendarData[date.getDate()] ?? 0) >= 80,
-                                occupancyMediumHigh: (date) => (calendarData[date.getDate()] ?? 0) >= 60 && (calendarData[date.getDate()] ?? 0) < 80,
-                                occupancyMediumLow: (date) => (calendarData[date.getDate()] ?? 0) >= 40 && (calendarData[date.getDate()] ?? 0) < 60,
-                                occupancyLow: (date) => (calendarData[date.getDate()] ?? 0) >= 20 && (calendarData[date.getDate()] ?? 0) < 40,
-                                occupancyEmpty: (date) => calendarData[date.getDate()] !== null && (calendarData[date.getDate()] ?? 0) < 20,
-                            }}
-                            modifiersClassNames={{
-                                weekend: "!text-red-400/60 !opacity-50",
-                                occupancyHigh: "occupancy-high",
-                                occupancyMediumHigh: "occupancy-medium-high",
-                                occupancyMediumLow: "occupancy-medium-low",
-                                occupancyLow: "occupancy-low",
-                                occupancyEmpty: "occupancy-empty",
-                            }}
-                            classNames={{
-                                root: "w-full",
-                                months: "w-full",
-                                month: "space-y-4 w-full",
-                                month_caption: "flex justify-center pt-1 relative items-center mb-4 w-full",
-                                caption_label: "text-2xl font-['Epilogue'] font-bold capitalize text-[#e5e2e1]",
-                                nav: "space-x-1 flex items-center absolute right-0",
-                                button_next: "p-2 rounded-lg bg-[#353534] hover:bg-[#393939] transition-colors text-[#e9c176]",
-                                button_previous: "p-2 rounded-lg bg-[#353534] hover:bg-[#393939] transition-colors text-[#e9c176]",
-                                month_grid: "w-full border-collapse space-y-1",
-                                weekdays: "grid grid-cols-7 gap-1 text-center mb-3 w-full",
-                                weekday: "text-xs uppercase tracking-wider text-[#c4c7c7] font-semibold w-full [&:nth-child(6)]:text-red-400 [&:nth-child(7)]:text-red-400",
-                                week: "grid grid-cols-7 gap-1 w-full mt-2",
-                                day: "h-12 xl:h-14 flex items-center justify-center p-0.5 relative focus-within:relative focus-within:z-20 w-full",
-                                day_button: "h-full w-full flex items-center justify-center text-base cursor-pointer hover:bg-[#353534] rounded-xl transition-all", // Dodano rounded-xl
-                                selected: "!bg-[#e9c176] !text-[#412d00] font-bold shadow-md shadow-[#e9c176]/20 scale-105 hover:bg-[#e9c176] !rounded-xl", // Dodano !rounded-xl
-                                outside: "invisible pointer-events-none",
-                                disabled: "!bg-transparent text-[#c4c7c7]/20 opacity-30 cursor-not-allowed hover:bg-transparent line-through",
-                            }}
-                        />
                     )}
                 </div>
 
@@ -299,7 +455,7 @@ function BookingContent() {
                         </div>
 
                         {allServices.length > 0 && (
-                            <div className="flex gap-2 overflow-x-auto pb-3 mb-2 scrollbar-hide">
+                            <div className="flex gap-2 overflow-x-auto pb-3 mb-4 scrollbar-hide">
                                 {categories.map((cat) => (
                                     <button
                                         key={cat}
@@ -316,111 +472,109 @@ function BookingContent() {
                             </div>
                         )}
 
-                        <div className="space-y-3">
-                            {filteredServices.map((service) => {
-                                const isOffered = selectedBarberId ? service.barbers.some((b) => b.id === selectedBarberId) : true;
-                                const isSelected = selectedServices.some((s) => s.id === service.id);
+                        {allServices.length > 0 && (
+                            <div className="space-y-6">
+                                {["COMBO", "HAIR", "BEARD", "CARE"].map((catKey) => {
+                                    if (activeCategory !== "ALL" && activeCategory !== catKey) return null;
 
-                                return (
-                                    <div
-                                        key={service.id}
-                                        onClick={() => toggleService(service)}
-                                        className={`p-3.5 sm:p-4 rounded-xl border transition-all flex flex-col gap-3 ${!isOffered
-                                            ? "bg-black/60 border-surface-container-high opacity-60 cursor-not-allowed grayscale"
-                                            : isSelected
-                                                ? "bg-primary/10 border-primary text-on-surface cursor-pointer"
-                                                : "bg-surface-container-high/40 border-surface-container-highest text-on-surface-variant hover:border-primary/40 cursor-pointer"
-                                            }`}
-                                    >
-                                        <div className="flex items-start gap-4">
-                                            {service.imageUrl && (
-                                                <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-lg overflow-hidden shrink-0 bg-background border border-surface-container-highest">
-                                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                    <img src={service.imageUrl} alt={service.name} className="w-full h-full object-cover" />
-                                                </div>
-                                            )}
+                                    const categoryServices = filteredServices.filter((s) => s.category === catKey);
+                                    if (categoryServices.length === 0) return null;
 
-                                            <div className="flex-1 min-w-0 pr-2">
-                                                <div className="flex items-center gap-2">
-                                                    <p className={`font-bold text-base leading-snug ${isSelected && isOffered ? "text-primary" : "text-on-surface"}`}>
-                                                        {service.name}
-                                                    </p>
-                                                    {!isOffered && selectedBarberId && (
-                                                        <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded bg-surface-container-highest text-on-surface-variant/80">
-                                                            Niedostępna
-                                                        </span>
-                                                    )}
-                                                </div>
-                                                {service.description && (
-                                                    <p className="text-xs text-on-surface-variant/70 mt-1 leading-relaxed">
-                                                        {service.description}
-                                                    </p>
-                                                )}
-                                                <p className="text-xs text-primary/80 mt-1.5 font-medium">⏱ {service.duration} min</p>
-                                            </div>
+                                    return (
+                                        <div key={catKey} className="space-y-3">
+                                            <h5 className="text-xs font-['Inter'] uppercase tracking-wider text-on-surface-variant/70 border-b border-surface-container-highest pb-2">
+                                                {CATEGORY_LABELS[catKey] || catKey}
+                                            </h5>
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {categoryServices.map((service) => {
+                                                    const isOffered = selectedBarberId ? service.barbers.some((b) => b.id === selectedBarberId) : true;
+                                                    const isSelected = selectedServices.some((s) => s.id === service.id);
 
-                                            <div className="text-right shrink-0 pt-0.5">
-                                                <p className="font-bold text-lg text-on-surface whitespace-nowrap">{service.price} zł</p>
+                                                    let isTooLongForTimeSlot = false;
+                                                    if (selectedTime && selectedBarberId) {
+                                                        const serviceBlock = service.duration + (service.bufferTime || 0);
+                                                        const timeIndex = availableSlots.indexOf(selectedTime);
+                                                        if (timeIndex !== -1) {
+                                                            let consecutiveFreeSlots = 0;
+                                                            for (let i = timeIndex; i < availableSlots.length; i++) {
+                                                                const slotTime = availableSlots[i];
+                                                                if (bookedTimes.includes(slotTime)) break;
+                                                                consecutiveFreeSlots++;
+                                                            }
+                                                            const maxAvailableMinutes = consecutiveFreeSlots * 15;
+                                                            if (serviceBlock > maxAvailableMinutes) {
+                                                                isTooLongForTimeSlot = true;
+                                                            }
+                                                        }
+                                                    }
+
+                                                    const isDisabled = !isOffered || isTooLongForTimeSlot;
+
+                                                    return (
+                                                        <div
+                                                            key={service.id}
+                                                            onClick={() => {
+                                                                if (!isDisabled) toggleService(service);
+                                                            }}
+                                                            className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${isDisabled
+                                                                ? "bg-black/60 border-surface-container-high opacity-50 cursor-not-allowed grayscale"
+                                                                : isSelected
+                                                                    ? "bg-primary/10 border-primary text-on-surface cursor-pointer"
+                                                                    : "bg-surface-container-high/40 border-surface-container-highest text-on-surface-variant hover:border-primary/40 cursor-pointer"
+                                                                }`}
+                                                        >
+                                                            <div className="flex items-start gap-3">
+                                                                {service.imageUrl && (
+                                                                    <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-background border border-surface-container-highest">
+                                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                                                                        <img src={service.imageUrl} alt={service.name} className="w-full h-full object-cover" />
+                                                                    </div>
+                                                                )}
+
+                                                                <div className="flex-1 min-w-0 pr-1">
+                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                        <p className={`font-bold text-sm leading-snug ${isSelected && !isDisabled ? "text-primary" : "text-on-surface"}`}>
+                                                                            {service.name}
+                                                                        </p>
+                                                                        {!isOffered && selectedBarberId && (
+                                                                            <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded bg-surface-container-highest text-on-surface-variant/80">
+                                                                                Niedostępna
+                                                                            </span>
+                                                                        )}
+                                                                        {isTooLongForTimeSlot && selectedTime && (
+                                                                            <span className="text-[10px] text-orange-400 font-medium flex items-center gap-1 bg-orange-400/10 px-1.5 py-0.5 rounded">
+                                                                                ⏱️ Za długa dla wybranej godziny
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                    {service.description && (
+                                                                        <p className="text-[11px] text-on-surface-variant/70 mt-0.5 line-clamp-2 leading-relaxed">
+                                                                            {service.description}
+                                                                        </p>
+                                                                    )}
+                                                                    <p className="text-[11px] text-primary/80 mt-1 font-medium">⏱ {service.duration} min</p>
+                                                                </div>
+
+                                                                <div className="text-right shrink-0">
+                                                                    <p className="font-bold text-base text-on-surface whitespace-nowrap">{service.price} zł</p>
+                                                                </div>
+                                                            </div>
+
+                                                            {!isOffered && selectedBarberId && (
+                                                                <div className="border-t border-surface-container-highest/50 pt-1.5 mt-0.5 text-[10px] text-on-surface-variant/60 italic">
+                                                                    Ten barber nie wykonuje tej usługi.
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
                                             </div>
                                         </div>
-
-                                        {!isOffered && selectedBarberId && (
-                                            <div className="border-t border-surface-container-highest/50 pt-2 mt-1 flex flex-wrap items-center justify-between gap-2 text-xs">
-                                                <span className="text-on-surface-variant/60 italic">Ten barber nie wykonuje tej usługi.</span>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    </div>
-
-                    {selectedBarberId && selectedServices.length > 0 && (
-                        <div className="bg-background rounded-2xl p-6 shadow-xl border border-surface-container-highest/50 animate-in fade-in slide-in-from-top-2">
-                            <div className="flex justify-between items-center mb-4">
-                                <div>
-                                    <h4 className="text-xs font-['Inter'] uppercase tracking-widest text-primary">Godzina wizyty</h4>
-                                    <p className="text-xs text-on-surface-variant/70 mt-1">Czas wizyty: <span className="text-primary font-semibold">{totalDuration} min</span></p>
-                                </div>
-                                {!isWorkingDay && <span className="text-xs text-[#f87171] font-medium">{offReason}</span>}
+                                    );
+                                })}
                             </div>
-
-                            {availableSlots.length === 0 ? (
-                                <p className="text-sm text-[#f87171] py-2">{offReason || "Brak wolnych terminów w tym dniu."}</p>
-                            ) : (
-                                <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
-                                    {availableSlots.map((time) => {
-                                        const isBooked = bookedTimes.includes(time);
-                                        const isUnavailableByDuration = slotsUnavailableByDuration.includes(time);
-                                        const isSelected = selectedTime === time;
-
-                                        return (
-                                            <div key={time} className="relative group">
-                                                <button
-                                                    disabled={isBooked}
-                                                    onClick={() => handleSelectTime(time)}
-                                                    className={`py-3 px-2 rounded-xl transition-all font-semibold border text-sm flex items-center justify-center w-full relative ${isSelected
-                                                        ? "bg-primary text-on-primary border-primary shadow-lg shadow-primary/20 scale-[1.02] font-bold"
-                                                        : isBooked
-                                                            ? "bg-[#252424]/40 text-on-surface-variant/20 border-transparent cursor-not-allowed line-through select-none"
-                                                            : "bg-[#2b2a2a] text-[#e5e2e1] border-outline-variant/40 hover:border-primary hover:bg-surface-container-highest cursor-pointer"
-                                                        }`}
-                                                >
-                                                    {time}
-                                                    {isUnavailableByDuration && <span className="absolute top-0.5 right-0.5 text-orange-400 text-xs leading-none">⏱️</span>}
-                                                </button>
-                                                {isUnavailableByDuration && (
-                                                    <div className="absolute left-1/2 -translate-x-1/2 -top-14 bg-surface-container-highest text-on-surface text-xs px-3 py-2 rounded-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50 border border-surface-container-highest">
-                                                        Zbyt krótki przedział czasowy na wybrane usługi
-                                                    </div>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        )}
+                    </div>
 
                     {selectedTime && (
                         <div ref={summaryRef} className="bg-on-primary/5 p-6 rounded-2xl border border-primary/40 shadow-2xl transition-all animate-in fade-in slide-in-from-top-4 duration-300">
