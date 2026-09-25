@@ -26,7 +26,14 @@ export const metadata: Metadata = {
   description: "Nowoczesny i ekskluzywny salon barberski.",
 };
 
-//glowny layout aplikacji, zawiera pasek nawigacji, stopke i kontener dla wyskakujacych powiadomien
+
+/**
+ * RootLayout jest głównym komponentem układu aplikacji, który renderuje strukturę HTML dla wszystkich stron.
+ * Zawiera pasek nawigacji, główną sekcję treści oraz stopkę. Dodatkowo obsługuje autoryzację użytkownika przy użyciu Supabase.
+ * Jeśli użytkownik jest zalogowany, pobiera jego dane z bazy danych przy użyciu Prisma i przekazuje je do komponentu NavBar.
+ * W przypadku braku zalogowanego użytkownika, NavBar renderuje odpowiednie elementy dla niezalogowanych użytkowników.
+ * Komponent korzysta z czcionek Inter i Epilogue z Google Fonts oraz zapewnia responsywność i dostępność.
+ */
 export default async function RootLayout({
   children,
 }: Readonly<{
@@ -36,7 +43,7 @@ export default async function RootLayout({
   const { data: { user: authUser } } = await supabase.auth.getUser();
 
   let databaseUser = null;
-  if (authUser) { //jesli uzytkownik jest zalogowany, pobieramy jego dane z bazy danych
+  if (authUser) {
     databaseUser = await prisma.user.findUnique({
       where: { id: authUser.id },
     });

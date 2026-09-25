@@ -169,6 +169,7 @@ model Reservation {
   user          User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
   barber        Barber               @relation(fields: [barberId], references: [id], onDelete: Restrict)
   services      ReservationService[]
+  review  Review?
 
   @@index([barberId, status, startTime, endTime])
   @@index([userId, startTime])
@@ -192,16 +193,18 @@ model ReservationService {
 }
 
 model Review {
-  id        String   @id @default(cuid())
-  rating    Int
-  comment   String?
-  userId    String
-  barberId  String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  id            String       @id @default(cuid())
+  rating        Int
+  comment       String?
+  userId        String
+  barberId      String
+  reservationId String       @unique
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @default(now()) @updatedAt
 
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  barber    Barber   @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  barber        Barber       @relation(fields: [barberId], references: [id], onDelete: Cascade)
+  reservation   Reservation  @relation(fields: [reservationId], references: [id], onDelete: Cascade)
 
   @@index([barberId])
 }

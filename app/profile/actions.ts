@@ -3,15 +3,16 @@
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { cache } from "react";
 
 /**
- * Funkcja getProfileData pobiera dane profilu zalogowanego użytkownika oraz jego rezerwacje z bazy danych.
+ * Funkcja getProfileData pobiera dane profilu zalogowanego użytkownika, w tym informacje o użytkowniku, jego rezerwacjach, dostępnych barberach oraz aktywnej subskrypcji.
  * Najpierw sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, zwraca null.
- * Następnie pobiera dane użytkownika z bazy danych przy użyciu Prisma oraz jego rezerwacje wraz z informacjami o barberze i usługach.
- * Zwraca obiekt zawierający dane użytkownika i jego rezerwacje.
- * W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca null.
+ * Następnie pobiera dane użytkownika z bazy danych przy użyciu Prisma, w tym informacje o jego ulubionym barberze.
+ * Pobiera również listę rezerwacji użytkownika, dostępnych barberów oraz aktywną subskrypcję, jeśli istnieje.
+ * Zwraca obiekt zawierający wszystkie te dane lub null w przypadku błędów.
  */
-export async function getProfileData() {
+export const getProfileData = cache(async () => {
     try {
         const supabase = await createClient();
         const {
@@ -23,7 +24,7 @@ export async function getProfileData() {
             return null;
         }
 
-        const [dbUser, reservations, barbers] = await Promise.all([
+        const [dbUser, reservations, barbers, activeSubscription] = await Promise.all([
             prisma.user.findUnique({
                 where: { id: authUser.id },
                 select: {
@@ -47,27 +48,35 @@ export async function getProfileData() {
                             duration: true,
                             priceAtBooking: true,
                             service: {
-                                select: { name: true },
+                                select: { name: true, imageUrl: true },
                             },
                         },
                     },
                 },
                 orderBy: { startTime: "desc" },
             }),
-            // Pobieramy aktywnych barberów do wyboru w profilu
             prisma.barber.findMany({
                 where: { isActive: true },
                 select: { id: true, name: true, role: true, imageUrl: true },
                 orderBy: { name: "asc" }
+            }),
+            prisma.userSubscription.findFirst({
+                where: {
+                    userId: authUser.id,
+                    status: "ACTIVE",
+                    expiresAt: { gt: new Date() }
+                },
+                include: { plan: true },
+                orderBy: { createdAt: "desc" }
             })
         ]);
 
-        return { user: dbUser, reservations, barbers };
+        return { user: dbUser, reservations, barbers, activeSubscription };
     } catch (err: unknown) {
         console.error("Błąd getProfileData:", err);
         return null;
     }
-}
+});
 
 /**
  *  Funkcja getUserReservations pobiera rezerwacje zalogowanego użytkownika z bazy danych.

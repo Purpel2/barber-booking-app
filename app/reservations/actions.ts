@@ -4,6 +4,42 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 
+
+function parseWarsawTimeToUTC(dateStr: string, timeStr: string): Date {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const [h, min] = timeStr.split(":").map(Number);
+
+    const refDate = new Date(Date.UTC(y, m - 1, d, h, min, 0));
+    const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Europe/Warsaw",
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false,
+    });
+
+    const parts = formatter.formatToParts(refDate);
+    const warsawHour = Number(parts.find((p) => p.type === "hour")?.value || 0) % 24;
+    const warsawMinute = Number(parts.find((p) => p.type === "minute")?.value || 0);
+
+    const diffMinutes = (warsawHour * 60 + warsawMinute) - (h * 60 + min);
+    return new Date(refDate.getTime() - diffMinutes * 60 * 1000);
+}
+
+function getWarsawMinuteOfDay(date: Date): number {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Europe/Warsaw",
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false,
+    });
+    const parts = formatter.formatToParts(date);
+    const h = Number(parts.find((p) => p.type === "hour")?.value || 0) % 24;
+    const m = Number(parts.find((p) => p.type === "minute")?.value || 0);
+    return h * 60 + m;
+}
+
+
+
 /**
  * Funkcja getBarbers pobiera listę aktywnych barberów z bazy danych przy użyciu Prisma.
  * Zwraca obiekt zawierający status sukcesu oraz dane barberów w przypadku powodzenia.
@@ -157,7 +193,7 @@ export async function getBarberDayDetails(
 
         const busyRanges = reservations.map((res) => {
             const resTime = new Date(res.startTime);
-            const startMin = resTime.getUTCHours() * 60 + resTime.getUTCMinutes();
+            const startMin = getWarsawMinuteOfDay(resTime);
 
             const baseDur = res.services?.reduce((sum, s) => sum + (s.duration || 30), 0) || 30;
             const maxBuf = res.services?.reduce((max, s) => Math.max(max, s.bufferTime || 0), 0) || 0;
@@ -395,9 +431,11 @@ export async function getMonthCalendarData(
 }
 
 /**
- * Funkcja createReservation tworzy nową rezerwację dla zalogowanego użytkownika na podstawie podanych danych, takich jak data, czas, identyfikatory usług, identyfikator barbera i metoda płatności.
- * Funkcja najpierw sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, zwraca informację o konieczności logowania.
- * Następnie pobiera dane użytkownika z bazy danych przy użyciu Prisma i sprawdza, czy wybrano usługi do rezerwacji.
+ * Funkcja getProfileData pobiera dane profilu użytkownika, w tym informacje o użytkowniku, jego rezerwacjach, dostępnych barberach oraz aktywnej subskrypcji.
+ * Najpierw sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, zwraca null.
+ * Następnie pobiera dane użytkownika z bazy danych przy użyciu Prisma, w tym informacje o jego ulubionym barberze.
+ * Pobiera również listę rezerwacji użytkownika, dostępnych barberów oraz aktywną subskrypcję, jeśli istnieje.
+ * Zwraca obiekt zawierający wszystkie te dane lub null w przypadku błędów.
  */
 export async function createReservation(data: {
     date: string;
@@ -447,14 +485,11 @@ export async function createReservation(data: {
         const maxBuffer = selectedServices.reduce((acc, s) => Math.max(acc, s.bufferTime || 0), 0);
         const totalPrice = selectedServices.reduce((acc, s) => acc + Number(s.price || 0), 0);
 
-        const [y, m, d] = data.date.split("-").map(Number);
-        const [h, min] = data.time.split(":").map(Number);
-        const reservationDateTime = new Date(Date.UTC(y, m - 1, d, h, min, 0));
-
+        const reservationDateTime = parseWarsawTimeToUTC(data.date, data.time);
         const reservationEndTime = new Date(reservationDateTime.getTime() + (totalDuration + maxBuffer) * 60 * 1000);
 
-        const startOfDay = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
-        const endOfDay = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+        const startOfDay = parseWarsawTimeToUTC(data.date, "00:00");
+        const endOfDay = new Date(parseWarsawTimeToUTC(data.date, "23:59").getTime() + 59 * 1000 + 999);
 
         const isOnline = data.paymentMethod === "ONLINE";
 

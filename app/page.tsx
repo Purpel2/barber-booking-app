@@ -4,10 +4,13 @@ import { prisma } from "@/lib/prisma";
 import { Scissors, Flower2, Coffee, ShieldCheck, Star, StarHalf, Quote } from "lucide-react";
 import { Barber } from "@prisma/client";
 import Newsletter from '@/app/components/newsletter';
+import { getRandomRecentReviews } from "@/lib/reviews";
+import Image from "next/image";
 
-
+/**
+ * Strona główna aplikacji Fresh Cut, prezentująca informacje o salonie barberskim, zespole barberów oraz opinie klientów.
+ */
 export default async function Home() {
-  //autentykacja serwerowa
   const supabase = await createClient();
   const { data: { user: authUser } } = await supabase.auth.getUser();
 
@@ -19,26 +22,27 @@ export default async function Home() {
     });
   }
 
-  //pobranie wszystkich barberów z bazy danych
   const barbers = await prisma.barber.findMany();
 
-  //losowe 3 opinie z bazy danych
-  const randomReviews = await prisma.$queryRaw<any[]>`
-    SELECT * FROM "Review" ORDER BY RANDOM() LIMIT 3
-  `;
+  const [reviews, totalReviewsCount] = await Promise.all([
+    getRandomRecentReviews(12),
+    prisma.review.count(),
+  ]);
 
   return (
     <div className="bg-background text-on-surface font-body selection:bg-primary selection:text-on-primary min-h-screen">
 
       <main>
-        {/* sekcja hero */}
         <section className="relative min-h-screen flex items-center justify-start pt-20 overflow-hidden w-full">
           <div className="absolute inset-0 z-0 overflow-hidden">
             <div className="absolute inset-0 bg-linear-to-r from-background via-background/80 to-transparent z-10"></div>
-            <img
-              alt="Luxury Barber Shop Interior"
-              className="w-full h-full object-cover scale-110 origin-center"
+            <Image
               src="/images/hero.webp"
+              alt="Luxury Barber Shop Interior"
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover scale-110 origin-center"
             />
           </div>
           <div className="relative z-20 px-6 sm:px-8 md:px-20 max-w-5xl">
@@ -62,22 +66,21 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* sekcja o nas */}
         <section className="pt-32 px-8 md:px-20 relative">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 lg:gap-16 items-center max-w-7xl mx-auto">
 
-            {/* lewa strona*/}
             <div className="lg:col-span-5 relative">
               <div className="aspect-3/4 md:aspect-4/5 rounded-xl overflow-hidden shadow-2xl group relative">
-                <img
-                  alt="Barber working"
-                  className="w-full h-full object-cover filter grayscale group-hover:grayscale-0 transition-all duration-700"
+                <Image
                   src="/images/barber_working.webp"
+                  alt="Barber working"
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-cover filter grayscale group-hover:grayscale-0 transition-all duration-700"
                 />
               </div>
             </div>
 
-            {/* prawa strona */}
             <div className="lg:col-span-7 flex flex-col justify-center">
               <span className="text-primary font-label tracking-[0.3em] text-xs uppercase mb-4 block">
                 NASZA FILOZOFIA
@@ -86,7 +89,6 @@ export default async function Home() {
                 Tworzymy coś <span className="text-primary italic font-black">więcej</span> niż tylko fryzurę.
               </h2>
 
-              {/* akapit */}
               <div className="space-y-6 mb-12 border-l-2 border-primary/30 pl-6 md:pl-8">
                 <p className="text-on-surface-variant font-body text-lg leading-relaxed">
                   Fresh Cut zrodziło się z chęci przedefiniowania rytuału pielęgnacji. Nie podążamy tylko za trendami, studiujemy architekturę twarzy i teksturę włosów, aby stworzyć wygląd, który jest unikalny dla Ciebie.
@@ -96,7 +98,6 @@ export default async function Home() {
                 </p>
               </div>
 
-              {/* grid kolumny */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 md:gap-10">
 
                 <div className="flex items-start gap-4">
@@ -145,7 +146,6 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* sekcja barberzy */}
         <section className="py-32 bg-surface-container-low">
           <div className="px-8 md:px-20 mb-20">
             <h2 className="font-headline text-5xl font-bold mb-4">Nasi Barberzy</h2>
@@ -157,10 +157,13 @@ export default async function Home() {
               barbers.map((barber: Barber) => (
                 <div key={barber.id} className="group relative bg-surface-container overflow-hidden rounded-xl border border-outline-variant/10">
                   <div className="aspect-video overflow-hidden bg-black flex items-center justify-center">
-                    <img
-                      alt={`Barber ${barber.name}`}
-                      className="w-full h-auto object-contain translate-y-22.5 transition-transform duration-500 group-hover:scale-105"
+                    <Image
                       src={barber.imageUrl || "/images/placeholder.webp"}
+                      alt={`Barber ${barber.name}`}
+                      width={500}
+                      height={650}
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      className="w-full h-auto object-contain translate-y-22.5 transition-transform duration-500 group-hover:scale-105"
                     />
                   </div>
                   <div className="p-8">
@@ -188,59 +191,133 @@ export default async function Home() {
           </div>
         </section>
 
-        {/* sekcja opinie klientow */}
-        <section className="py-32">
-          <div className="px-8 md:px-20 text-center mb-20">
+        <section className="py-2 overflow-hidden relative">
+          <div className="px-8 md:px-20 text-center mb-16">
             <span className="text-primary font-label tracking-widest text-xs uppercase mb-4 block">OPINIE</span>
             <h2 className="font-headline text-5xl font-bold">Co mówią klienci</h2>
           </div>
 
-          <div className="px-8 md:px-20 grid grid-cols-1 md:grid-cols-3 gap-12">
-            {randomReviews.length > 0 ? (
-              randomReviews.map((review) => (
-                <div key={review.id} className="relative pt-12">
-                  <Quote className="absolute top-0 left-0 w-12 h-12 text-primary/10 rotate-180" />
-                  <p className="italic text-lg text-on-surface font-body leading-relaxed mb-8">
-                    "{review.content}"
-                  </p>
-                  <div className="flex items-center gap-4">
-                    <div className="w-12 h-12 rounded-full overflow-hidden bg-surface-container-highest flex items-center justify-center border border-outline-variant/20 text-primary font-headline font-bold text-sm">
-                      {review.author[0]}
-                    </div>
-                    <div>
-                      <p className="font-headline font-bold mb-1">{review.author}</p>
-                      <div className="flex gap-0.5 items-center">
-                        {/* generowanie gwiazdek na podstawie oceny */}
-                        {Array(Math.floor(review.rating)).fill(0).map((_, index) => (
-                          <Star key={`full-${index}`} className="w-3.5 h-3.5 text-primary fill-primary" />
-                        ))}
-                        {review.rating % 1 >= 0.5 && (
-                          <StarHalf className="w-3.5 h-3.5 text-primary fill-primary" />
-                        )}
-                        <span className="text-[10px] text-on-surface-variant ml-1 font-bold">
-                          {review.rating.toFixed(1)}
+          {reviews.length === 0 ? (
+            <div className="text-center text-on-surface-variant text-sm italic py-8">
+              Brak opinii do wyświetlenia.
+            </div>
+          ) : reviews.length > 5 ? (
+            <div className="relative w-full overflow-hidden">
+              <div className="pointer-events-none absolute left-0 top-0 bottom-0 w-24 bg-linear-r from-background to-transparent z-10" />
+              <div className="pointer-events-none absolute right-0 top-0 bottom-0 w-24 bg-linear-l from-background to-transparent z-10" />
+
+              <div className="animate-marquee flex gap-6">
+                {[...reviews, ...reviews].map((review, idx) => {
+                  const authorName = review.user?.firstName || "Klient";
+                  const reviewComment = review.comment || "Świetna atmosfera i profesjonalne strzyżenie!";
+
+                  return (
+                    <div
+                      key={`${review.id}-${idx}`}
+                      className="w-75 md:w-85 2xl:w-90 shrink-0 bg-white/3 border border-white/8 hover:border-primary/40 rounded-2xl p-6 flex flex-col justify-between transition-colors"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex gap-1 items-center">
+                            {Array(Math.floor(review.rating)).fill(0).map((_, index) => (
+                              <Star key={`full-${index}`} className="w-3.5 h-3.5 text-primary fill-primary" />
+                            ))}
+                            {review.rating % 1 >= 0.5 && (
+                              <StarHalf className="w-3.5 h-3.5 text-primary fill-primary" />
+                            )}
+                            <span className="text-xs font-bold text-on-surface ml-1.5">
+                              {review.rating.toFixed(1)}
+                            </span>
+                          </div>
+                          <Quote className="w-5 h-5 text-primary/30 rotate-180" />
+                        </div>
+
+                        <p className="text-sm text-on-surface/90 font-body leading-relaxed mb-6 italic line-clamp-3">
+                          &ldquo;{reviewComment}&rdquo;
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-3 pt-3 border-t border-outline-variant/10">
+                        <div className="w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant/20 flex items-center justify-center text-primary font-headline font-bold text-xs uppercase">
+                          {authorName[0]}
+                        </div>
+                        <span className="font-headline font-bold text-sm text-on-surface">
+                          {authorName}
                         </span>
                       </div>
                     </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="col-span-1 md:col-span-3 text-center text-on-surface-variant text-sm italic py-8">
-                Brak opinii do wyświetlenia. Dodaj kilka rekordów w bazie danych.
+                  );
+                })}
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="w-full overflow-x-auto px-6 md:px-12 py-2 flex justify-start md:justify-center items-stretch gap-6 scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
+              {reviews.map((review) => {
+                const authorName = review.user?.firstName || "Klient";
+                const reviewComment = review.comment || "Świetna atmosfera i profesjonalne strzyżenie!";
+
+                return (
+                  <div
+                    key={review.id}
+                    className="w-75 md:w-85 2xl:w-90 shrink-0 bg-white/3 border border-white/8 hover:border-primary/40 rounded-2xl p-6 flex flex-col justify-between transition-colors"
+                  >
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex gap-1 items-center">
+                          {Array(Math.floor(review.rating)).fill(0).map((_, index) => (
+                            <Star key={`full-${index}`} className="w-3.5 h-3.5 text-primary fill-primary" />
+                          ))}
+                          {review.rating % 1 >= 0.5 && (
+                            <StarHalf className="w-3.5 h-3.5 text-primary fill-primary" />
+                          )}
+                          <span className="text-xs font-bold text-on-surface ml-1.5">
+                            {review.rating.toFixed(1)}
+                          </span>
+                        </div>
+                        <Quote className="w-5 h-5 text-primary/30 rotate-180" />
+                      </div>
+
+                      <p className="text-sm text-on-surface/90 font-body leading-relaxed mb-6 italic line-clamp-3">
+                        &ldquo;{reviewComment}&rdquo;
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-3 pt-3 border-t border-outline-variant/10">
+                      <div className="w-8 h-8 rounded-full bg-surface-container-highest border border-outline-variant/20 flex items-center justify-center text-primary font-headline font-bold text-xs uppercase">
+                        {authorName[0]}
+                      </div>
+                      <span className="font-headline font-bold text-sm text-on-surface">
+                        {authorName}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {totalReviewsCount > 0 && (
+            <div className="mt-12 text-center">
+              <Link
+                href="/reviews"
+                className="inline-flex items-center gap-2 border border-outline-variant/30 hover:border-primary/50 bg-surface-container/40 hover:bg-surface-container px-6 py-3 rounded-xl font-headline font-bold text-xs tracking-widest text-on-surface hover:text-primary transition-all uppercase"
+              >
+                Zobacz wszystkie opinie ({totalReviewsCount}) &rarr;
+              </Link>
+            </div>
+          )}
         </section>
 
-        {/* sekcja cta (call to action) */}
         <section className="py-16 sm:py-24 px-4 sm:px-8 md:px-20 w-full">
           <div className="bg-primary rounded-2xl p-16 flex flex-col items-center text-center relative overflow-hidden">
             <div className="absolute inset-0 opacity-10 pointer-events-none">
-              <img
-                alt="Texture background"
-                className="w-full h-full object-cover"
+              <Image
                 src="/images/texture_bg.webp"
+                alt="Texture background"
+                fill
+                sizes="100vw"
+                aria-hidden="true"
+                className="object-cover"
               />
             </div>
             <h2 className="font-headline text-on-primary text-4xl sm:text-5xl md:text-6xl font-black mb-8 relative z-10 leading-tight wrap-break-word max-w-3xl">Gotowy na transformację w Fresh Cut?</h2>
