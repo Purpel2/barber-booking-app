@@ -5,6 +5,7 @@ import { registerUser } from "../actions/auth";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import Image from "next/image";
 
 export default function RegisterPage() {
     //pokazywanie/ukrywanie hasla
@@ -13,7 +14,6 @@ export default function RegisterPage() {
 
     const router = useRouter();
     const [error, setError] = useState<string | null>(null);
-    const [success, setSuccess] = useState(false);
 
     async function handleSubmit(formData: FormData) {
         setError(null);
@@ -49,16 +49,19 @@ export default function RegisterPage() {
 
             {/* photo background */}
             <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
-                <img
+                <Image
                     alt="register background"
-                    className="w-full h-full object-cover grayscale"
+                    className="object-cover grayscale"
                     src="/images/register_bg.webp"
+                    fill
+                    priority
+                    sizes="100vw"
                 />
                 {/* gradient */}
                 <div className="absolute inset-0 bg-linear-to-b from-background via-transparent to-background"></div>
             </div>
 
-            <main className="relative z-10 min-h-screen flex items-center justify-center px-6 py-24">
+            <main className="relative z-10 flex-1 flex items-center justify-center px-6 py-8 md:py-12">
                 <div className="glass-panel w-full max-w-xl p-8 md:p-12 rounded-xl border border-outline-variant/10 shadow-2xl">
 
                     <div className="mb-10 text-center md:text-left">

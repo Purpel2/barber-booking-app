@@ -1,21 +1,23 @@
 "use client";
 
-import { useState } from "react";
-import { Eye, EyeOff, ArrowRight } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Eye, EyeOff, ArrowRight, Loader2 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { loginUser } from "../actions/auth";
 import { toast } from "react-hot-toast";
 import Image from "next/image";
 
 /**
  * Strona logowania do aplikacji.
- * Umożliwia użytkownikowi zalogowanie się do konta przy użyciu adresu email i hasła.
- * Po poprawnym zalogowaniu użytkownik jest przekierowany na stronę określoną w parametrze "redirect" lub na stronę główną.
- * Zawiera również opcję logowania przez Google i Apple (niedostępne na razie) oraz link do rejestracji nowego konta.
- * Obsługuje błędy logowania i wyświetla odpowiednie komunikaty.
+ * Zawiera formularz logowania z polami na adres e-mail i hasło, opcją zapamiętania użytkownika oraz przyciskiem logowania.
+ * Obsługuje logowanie użytkownika przy użyciu funkcji loginUser, wyświetla komunikaty o błędach i sukcesie logowania oraz przekierowuje użytkownika po zalogowaniu.
+ * Dodatkowo umożliwia logowanie przez Google (niedostępne na razie) oraz link do rejestracji dla nowych użytkowników.
+ * Stylizacja oparta jest na klasach Tailwind CSS, a strona jest responsywna i dostosowana do różnych rozdzielczości ekranów.
  */
 export default function LoginPage() {
+    const router = useRouter();
+    const [isLoading, setIsLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false); //przelaczanie widocznosci hasła
     const [error, setError] = useState<string | null>(null); //przechowywanie bledu logowania
     const searchParams = useSearchParams();
@@ -26,8 +28,15 @@ export default function LoginPage() {
         ? rawRedirect
         : "/";
 
-    // funkcja handleSubmit obsługuje logowanie użytkownika po przesłaniu formularza. Wysyła dane do funkcji loginUser, a następnie obsługuje wynik logowania, wyświetlając odpowiednie komunikaty o błędach lub sukcesie.
+    // Wstepne pobranie kodu strony docelowej w tle, aby przekierowanie bylo natychmiastowe
+    useEffect(() => {
+        router.prefetch(targetUrl);
+    }, [router, targetUrl]);
+
+    // funkcja handleSubmit obsługuje przesyłanie formularza logowania. Sprawdza, czy nie trwa już proces logowania (isLoading), ustawia stan ładowania i resetuje błąd. Następnie wywołuje funkcję loginUser z danymi formularza i obsługuje wynik logowania, wyświetlając odpowiednie komunikaty toast i przekierowując użytkownika w przypadku sukcesu.
     async function handleSubmit(formData: FormData) {
+        if (isLoading) return;
+        setIsLoading(true);
         setError(null);
 
         const loadingToast = toast.loading("Sprawdzanie danych...");
@@ -36,9 +45,10 @@ export default function LoginPage() {
 
         if (result?.error) {
             setError(result.error);
+            setIsLoading(false);
         } else if (result?.success) {
             toast.success("Zalogowano pomyślnie!", {
-                duration: 4000,
+                duration: 2500,
                 style: {
                     background: "#2a2a2a",
                     color: "#e9c176",
@@ -49,16 +59,14 @@ export default function LoginPage() {
                     secondary: "#2a2a2a",
                 },
             });
-            setTimeout(() => {
-                window.location.href = targetUrl;
-            }, 800);
+            router.push(targetUrl);
+            router.refresh();
         }
     }
-
     return (
-        <div className="bg-background text-on-background font-body min-h-screen relative overflow-y-auto selection:bg-primary selection:text-on-primary">
+        <div className="bg-background text-on-background font-body relative flex-1 flex flex-col justify-center items-center selection:bg-primary selection:text-on-primary w-full overflow-hidden">
             {/* tło + gradient */}
-            <div className="fixed inset-0 z-0">
+            <div className="absolute inset-0 z-0 pointer-events-none">
                 <div className="absolute inset-0 bg-linear-to-b from-background/40 via-background/80 to-background z-10"></div>
                 <Image
                     alt="login background"
@@ -71,139 +79,153 @@ export default function LoginPage() {
             </div>
 
             {/* glowny kontener */}
-            <main className="relative z-20 min-h-screen flex flex-col items-center justify-center px-6 py-20">
-                <header className="mb-12 mt-8 text-center">
-                    <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-[0.3em] text-primary mb-2">Fresh Cut</h1>
-                    <p className="font-label text-[10px] uppercase tracking-[0.2em] text-on-surface-variant">Ekskluzywna Pielęgnacja</p>
-                </header>
+            <main className="relative z-20 w-full flex flex-col items-center justify-center px-4 py-8">
+                <div className="w-full max-w-md flex flex-col items-center">
 
-                {/* panel logowania */}
-                <div className="w-full max-w-md glass-panel rounded-xl p-8 md:p-12 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] border border-outline-variant/10">
-                    <div className="mb-10">
-                        <h2 className="font-headline text-2xl font-bold text-on-surface mb-2">Witaj!</h2>
-                        <p className="text-on-surface-variant text-sm">Bezpieczny dostęp do Twojego profilu.</p>
-                    </div>
+                    {/* naglowek */}
+                    <header className="mb-8 text-center">
+                        <h1 className="font-headline text-4xl md:text-5xl font-extrabold tracking-[0.3em] text-primary mb-2">
+                            Fresh Cut
+                        </h1>
+                        <p className="font-label text-[10px] md:text-xs uppercase tracking-[0.2em] text-on-surface-variant">
+                            Ekskluzywna Pielęgnacja
+                        </p>
+                    </header>
 
-                    {error && (
-                        <div className="mb-6 p-4 bg-red-900/50 border border-red-500/30 rounded-lg text-sm text-red-200">
-                            {error}
+                    {/* panel logowania */}
+                    <div className="w-full glass-panel rounded-xl p-8 md:p-10 shadow-[0_32px_64px_-12px_rgba(0,0,0,0.6)] border border-outline-variant/10">
+                        <div className="mb-8">
+                            <h2 className="font-headline text-2xl font-bold text-on-surface mb-2">
+                                Witaj!
+                            </h2>
+                            <p className="text-on-surface-variant text-sm">
+                                Zaloguj się i zarezerwuj swój fotel.
+                            </p>
                         </div>
-                    )}
 
-                    {/* formularz logowania */}
-                    <form className="space-y-6" action={handleSubmit}>
-                        {/* email */}
-                        <div className="space-y-2">
-                            <label className="font-label text-[10px] uppercase tracking-widest text-on-surface-variant ml-1">
-                                Adres E-mail
-                            </label>
-                            <div className="relative">
-                                <input
-                                    name="email"
-                                    type="email"
-                                    required
-                                    placeholder="adres@domena.com"
-                                    className="w-full bg-surface-container-highest border-none rounded-lg py-4 px-4 text-on-surface placeholder:text-outline/50 focus:ring-1 focus:ring-primary transition-all duration-300"
-                                />
+                        {error && (
+                            <div className="mb-6 p-4 bg-red-900/50 border border-red-500/30 rounded-lg text-sm text-red-200">
+                                {error}
                             </div>
-                        </div>
+                        )}
 
-                        {/* hasło */}
-                        <div className="space-y-2">
-                            <div className="flex justify-between items-end ml-1">
-                                <label className="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">
-                                    Hasło
+                        {/* formularz logowania */}
+                        <form className="space-y-6" action={handleSubmit}>
+                            {/* email */}
+                            <div className="space-y-2">
+                                <label className="font-label text-[10px] uppercase tracking-widest text-on-surface-variant ml-1">
+                                    Adres E-mail
                                 </label>
-                                <a className="text-[10px] uppercase tracking-widest text-primary hover:text-primary-fixed-dim transition-colors" href="#">
-                                    Zapomniałeś hasła?
-                                </a>
+                                <div className="relative">
+                                    <input
+                                        name="email"
+                                        type="email"
+                                        required
+                                        placeholder="adres@domena.com"
+                                        className="w-full bg-surface-container-highest border-none rounded-lg py-4 px-4 text-on-surface placeholder:text-outline/50 focus:ring-1 focus:ring-primary transition-all duration-300"
+                                    />
+                                </div>
                             </div>
-                            <div className="relative">
+
+                            {/* hasło */}
+                            <div className="space-y-2">
+                                <div className="flex justify-between items-end ml-1">
+                                    <label className="font-label text-[10px] uppercase tracking-widest text-on-surface-variant">
+                                        Hasło
+                                    </label>
+                                    <a className="text-[10px] uppercase tracking-widest text-primary hover:text-primary-fixed-dim transition-colors" href="#">
+                                        Zapomniałeś hasła?
+                                    </a>
+                                </div>
+                                <div className="relative">
+                                    <input
+                                        name="password"
+                                        type={showPassword ? "text" : "password"}
+                                        required
+                                        placeholder="••••••••"
+                                        className="w-full bg-surface-container-highest border-none rounded-lg py-4 pl-4 pr-12 text-on-surface placeholder:text-outline/50 focus:ring-1 focus:ring-primary transition-all duration-300"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowPassword(!showPassword)}
+                                        className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface/40 hover:text-white cursor-pointer select-none"
+                                    >
+                                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* zapamietaj mnie */}
+                            <div className="flex items-center px-1">
                                 <input
-                                    name="password"
-                                    type={showPassword ? "text" : "password"}
-                                    required
-                                    placeholder="••••••••"
-                                    className="w-full bg-surface-container-highest border-none rounded-lg py-4 pl-4 pr-12 text-on-surface placeholder:text-outline/50 focus:ring-1 focus:ring-primary transition-all duration-300"
+                                    id="remember"
+                                    type="checkbox"
+                                    className="w-4 h-4 rounded border-outline-variant/30 bg-surface-container-highest text-primary focus:ring-offset-background focus:ring-primary cursor-pointer"
                                 />
-                                <button //przycisk do pokazywania/ukrywania hasła
-                                    type="button"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface/40 hover:text-white cursor-pointer select-none"
-                                >
-                                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                                </button>
+                                <label className="ml-3 text-sm text-on-surface-variant cursor-pointer select-none" htmlFor="remember">
+                                    Zapamiętaj mnie przez 30 dni
+                                </label>
+                            </div>
+
+                            {/* przycisk submit */}
+                            <button
+                                disabled={isLoading}
+                                className="w-full bg-primary hover:bg-surface-tint disabled:opacity-60 disabled:cursor-not-allowed text-on-primary font-headline font-bold py-4 rounded-lg shadow-lg shadow-primary/10 transition-all duration-300 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
+                                type="submit"
+                            >
+                                {isLoading ? (
+                                    <>
+                                        <span>LOGOWANIE...</span>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                    </>
+                                ) : (
+                                    <>
+                                        <span>ZALOGUJ SIĘ</span>
+                                        <ArrowRight className="w-4 h-4" />
+                                    </>
+                                )}
+                            </button>
+                        </form>
+
+                        {/* linia oddzielajaca */}
+                        <div className="relative my-8">
+                            <div className="absolute inset-0 flex items-center">
+                                <div className="w-full border-t border-outline-variant/20"></div>
+                            </div>
+                            <div className="relative flex justify-center text-[10px] uppercase tracking-[0.2em]">
+                                <span className="px-4 bg-[#1c1b1b] text-outline">Lub zaloguj przez</span>
                             </div>
                         </div>
 
-                        {/* zapamietaj mnie */}
-                        <div className="flex items-center px-1">
-                            <input
-                                id="remember"
-                                type="checkbox"
-                                className="w-4 h-4 rounded border-outline-variant/30 bg-surface-container-highest text-primary focus:ring-offset-background focus:ring-primary cursor-pointer"
-                            />
-                            <label className="ml-3 text-sm text-on-surface-variant cursor-pointer select-none" htmlFor="remember">
-                                Zapamiętaj mnie przez 30 dni
-                            </label>
-                        </div>
-
-                        {/* przycisk submit */}
-                        <button
-                            className="w-full bg-primary hover:bg-surface-tint text-on-primary font-headline font-bold py-4 rounded-lg shadow-lg shadow-primary/10 transition-all duration-300 active:scale-[0.98] cursor-pointer flex items-center justify-center gap-2"
-                            type="submit"
-                        >
-                            ZALOGUJ SIĘ
-                            <ArrowRight className="w-4 h-4" />
-                        </button>
-                    </form>
-
-                    {/* linia oddzielajaca */}
-                    <div className="relative my-10">
-                        <div className="absolute inset-0 flex items-center">
-                            <div className="w-full border-t border-outline-variant/20"></div>
-                        </div>
-                        <div className="relative flex justify-center text-[10px] uppercase tracking-[0.2em]">
-                            <span className="px-4 bg-[#1c1b1b] text-outline">Lub zaloguj przez</span>
+                        {/* logowanie przez google (niedostepne na razie) */}
+                        <div>
+                            <button
+                                type="button"
+                                disabled
+                                title="Logowanie przez Google będzie dostępne wkrótce"
+                                className="w-full flex items-center justify-center gap-3 bg-surface-container-low/40 border border-outline-variant/5 py-3.5 rounded-lg opacity-40 cursor-not-allowed"
+                            >
+                                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                                    <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                                    <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
+                                    <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
+                                </svg>
+                                <span className="text-xs font-medium text-on-surface/60">Google</span>
+                            </button>
                         </div>
                     </div>
 
-                    {/* logowanie przez google/apple (niedostepne na razie) */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <button
-                            disabled
-                            title="Logowanie przez Google będzie dostępne wkrótce"
-                            className="flex items-center justify-center gap-3 bg-surface-container-low/40 border border-outline-variant/5 py-3.5 rounded-lg opacity-40 cursor-not-allowed"
-                        >
-                            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" fill="#FBBC05" />
-                                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335" />
-                            </svg>
-                            <span className="text-xs font-medium text-on-surface/60">Google</span>
-                        </button>
-                        <button
-                            disabled
-                            title="Logowanie przez Apple będzie dostępne wkrótce"
-                            className="flex items-center justify-center gap-3 bg-surface-container-low/40 border border-outline-variant/5 py-3.5 rounded-lg opacity-40 cursor-not-allowed"
-                        >
-                            <svg className="w-5 h-5 text-on-surface/60" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                                <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 4.17c.66-.81 1.11-1.93.99-3.06-1 .04-2.21.67-2.93 1.49-.62.69-1.16 1.84-1.01 2.96 1.12.09 2.27-.58 2.95-1.39z" />
-                            </svg>
-                            <span className="text-xs font-medium text-on-surface/60">Apple</span>
-                        </button>
+                    {/* link do rejestracji */}
+                    <div className="mt-8 text-center">
+                        <p className="text-on-surface-variant font-body text-sm">
+                            Nie masz konta?{" "}
+                            <Link className="text-primary font-bold ml-1 hover:underline underline-offset-4 decoration-primary/30 transition-all" href="/register">
+                                Zarejestruj się
+                            </Link>
+                        </p>
                     </div>
-                </div>
 
-                {/* link do rejestracji */}
-                <div className="mt-12 text-center">
-                    <p className="text-on-surface-variant font-body text-sm">
-                        Nie masz konta?{" "}
-                        <Link className="text-primary font-bold ml-1 hover:underline underline-offset-4 decoration-primary/30 transition-all" href="/register">
-                            Zarejestruj się
-                        </Link>
-                    </p>
                 </div>
             </main>
         </div>

@@ -68,7 +68,7 @@ export default function NavBar({ user }: NavBarProps) {
     const bookingHref = user ? "/reservations" : "/login?redirect=/reservations";
 
     return (
-        <nav className="fixed top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-primary/15 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]">
+        <nav className="sticky top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-primary/15 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]">
             <div className="flex justify-between items-center px-8 py-4 max-w-full">
                 <Link href="/" className="flex items-center gap-3 group focus:outline-none select-none">
                     {/* brzytwa LOGO */}
