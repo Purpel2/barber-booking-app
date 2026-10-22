@@ -324,7 +324,7 @@ export default async function Home() {
             <p className="text-on-primary/80 max-w-2xl mb-8 sm:mb-12 text-lg font-medium relative z-10 leading-relaxed">Liczba miejsc jest ograniczona. Nasi barberzy mają szybko zapełniające się kalendarze. Zarezerwuj swój czas na fotelu już dziś i doświadcz szczytu pielęgnacji.</p>
             <Link
               href={databaseUser ? "/dashboard" : "/login"}
-              className="bg-background text-primary border border-primary/20 px-6 py-4 sm:px-12 sm:py-6 rounded-xl font-headline font-black text-xl tracking-widest hover:bg-[#1c1b1b] hover:scale-105 transition-all shadow-2xl relative z-10 text-center w-full sm:w-auto"
+              className="bg-background text-primary border border-primary/20 px-6 py-4 sm:px-12 sm:py-6 rounded-xl font-headline font-black text-xl tracking-widest hover:bg-surface-container hover:scale-105 transition-all shadow-2xl relative z-10 text-center w-full sm:w-auto"
             >
               UMÓW WIZYTĘ
             </Link>

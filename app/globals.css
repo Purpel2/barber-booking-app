@@ -1,22 +1,58 @@
 @import "tailwindcss";
 
+/* ==========================================================================
+   1. SYSTEM DESIGNU & ZMIENNE TEMATYCZNE (THEME TOKENS)
+   Tailwind CSS v4 - definiuje zmienne dostępne w klasach narzędziowych
+   (np. bg-primary, hover:bg-primary-hover, bg-surface-container, text-on-surface)
+   ========================================================================== */
 @theme {
+    /* --- Kolory wiodące & Akcenty (Brand & Accent Colors) --- */
     --color-background: #131313;
     --color-on-background: #e5e2e1;
     --color-primary: #e9c176;
+    --color-primary-hover: #dfb360;
+    /* Ciemniejszy złoty hover dla głównych przycisków akcji */
     --color-secondary: #e7bdb1;
     --color-on-primary: #412d00;
-    --color-surface-container-highest: #353534;
+
+    /* --- Hierarchia powierzchni (Material Design 3 Dark Surfaces) ---
+       Semantyczne tokeny zastępujące ręcznie wpisywane wartości HEX w komponentach:
+       - lowest: najciemniejsze tło bazowe (np. boczny sidebar nawigacyjny #141414)
+       - low: podniesione tła dialogów, modali i menu (#181818)
+       - container: standardowe karty, kafelki wizyt i sekcje profilu (#1c1b1b)
+       - input: tła pól formularzy input/select/textarea (#201f1f)
+       - high / highest: obramowania, separatory, linie podziału i tła badge'y
+       - bright: stan rozjaśnienia hover dla szarych elementów interaktywnych
+    */
+    --color-surface-container-lowest: #141414;
+    /* Sidebar i ciemne tła bazowe */
+    --color-surface-container-low: #181818;
+    /* Okna modalne i menu rozwijane */
+    --color-surface-container: #1c1b1b;
+    /* Główne kafelki, karty wizyt i sekcje */
+    --color-surface-input: #201f1f;
+    /* Tła pól input, select, textarea */
     --color-surface-container-high: #2a2a2a;
+    /* Obramowania kafelków, obramowania sekcji */
+    --color-surface-container-highest: #353534;
+    /* Tła badge'y, pigułek i subtelnych przycisków */
+    --color-surface-bright: #383737;
+    /* Podświetlenie hover dla powierzchni */
+
+    /* --- Kolory tekstu i obramowań (Typography & Borders) --- */
     --color-on-surface: #e5e2e1;
     --color-on-surface-variant: #c4c7c7;
     --color-outline-variant: #444748;
 
+    /* --- Typografia (Font Families) --- */
     --font-headline: var(--font-epilogue), sans-serif;
     --font-body: var(--font-inter), sans-serif;
     --font-label: var(--font-inter), sans-serif;
 }
 
+/* ==========================================================================
+   2. BAZOWE STYLE GLOBALNE (BASE STYLES)
+   ========================================================================== */
 body {
     background-color: var(--color-background);
     color: var(--color-on-background);
@@ -27,12 +63,97 @@ body {
     font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
 }
 
+/* ==========================================================================
+   3. KOMPONENTY POWIERZCHNI & KARTY (SURFACES & CARDS)
+   ========================================================================== */
+
+/* Efekt szkła (Glassmorphism) - używany m.in. w pasku nawigacji i pływających panelach */
 .glass-panel {
     background: rgba(28, 27, 27, 0.8);
     backdrop-filter: blur(24px);
 }
 
-/* kolory do kolendarza */
+/* Standardowy kafelek/karta w panelu (np. statystyki, wizytówki, pakiety) */
+.card-panel {
+    background-color: var(--color-surface-container);
+    border: 1px solid var(--color-surface-container-high);
+    border-radius: 1rem;
+    box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+}
+
+/* ==========================================================================
+   4. FORMULARZE & KONTROLKI (FORMS & INPUTS)
+   Gotowe klasy bazowe dla pól tekstowych i etykiet, zapobiegające powielaniu kodu
+   ========================================================================== */
+
+/* Pole tekstowe / select / textarea z dedykowanym stanem focus i hover */
+.input-field {
+    width: 100%;
+    background-color: var(--color-surface-input);
+    border: 1px solid var(--color-surface-container-high);
+    border-radius: 0.75rem;
+    padding: 0.625rem 0.875rem;
+    font-size: 0.75rem;
+    color: var(--color-on-surface);
+    outline: none;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.input-field:focus {
+    border-color: var(--color-primary);
+}
+
+.input-field::placeholder {
+    color: rgba(196, 199, 199, 0.4);
+}
+
+/* Górna etykieta pola formularza (uppercase ze zwiększonym trackingiem) */
+.field-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-on-surface-variant);
+    margin-bottom: 0.375rem;
+}
+
+/* ==========================================================================
+   5. OKNA MODALNE (MODALS & OVERLAYS)
+   Spójne tła przyciemniające oraz kontenery okien dialogowych (np. 2FA, recenzje, ustawienia)
+   ========================================================================== */
+
+/* Przyciemnione, rozmyte tło okna modalnego z animacją pojawiania */
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background-color: rgba(0, 0, 0, 0.8);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    overflow-y: auto;
+}
+
+/* Kontener właściwego okna modalnego */
+.modal-box {
+    background-color: var(--color-surface-container-low);
+    border: 1px solid var(--color-surface-container-high);
+    border-radius: 1rem;
+    max-width: 28rem;
+    width: 100%;
+    padding: 1.5rem;
+    color: var(--color-on-surface);
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+    position: relative;
+}
+
+/* ==========================================================================
+   6. KALENDARZ REZERWACJI - WSKAŹNIKI ZAJĘTOŚCI TERMINÓW
+   Klasy dynamicznie aplikowane w DayPickerze rezerwacji w zależności od obłożenia barbera
+   ========================================================================== */
 .occupancy-empty {
     background-color: rgba(34, 197, 94, 0.07) !important;
 }
@@ -53,6 +174,11 @@ body {
     background-color: rgba(239, 68, 68, 0.07) !important;
 }
 
+/* ==========================================================================
+   7. ANIMACJE & EFEKTY SPECJALNE (ANIMATIONS & UTILITIES)
+   ========================================================================== */
+
+/* Płynny pasek marquee*/
 @keyframes marquee {
     0% {
         transform: translateX(0%);
@@ -71,4 +197,27 @@ body {
 
 .animate-marquee:hover {
     animation-play-state: paused;
+}
+
+/*ciemny pasek przewijania */
+.custom-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: #353534 transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar {
+    width: 5px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #353534;
+    border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: #e9c176;
 }

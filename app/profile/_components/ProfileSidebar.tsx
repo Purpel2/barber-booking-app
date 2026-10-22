@@ -1,14 +1,16 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
-import { User, CalendarDays, CreditCard, Settings, Scissors, LogOut, Sparkles } from "lucide-react";
-import { logoutUser } from "../../actions/auth";
+import { User, CalendarDays, Bell, CreditCard, Settings, LogOut } from "lucide-react";
+import { logoutUser } from "@/app/actions/auth";
 
 interface ProfileSidebarProps {
     user: {
         fullName: string;
         email: string;
+        avatarUrl?: string | null;
         isVip: boolean;
         completedCount: number;
     };
@@ -17,15 +19,18 @@ interface ProfileSidebarProps {
 const navItems = [
     { label: "Mój Profil", href: "/profile", icon: User },
     { label: "Moje Wizyty", href: "/profile/appointments", icon: CalendarDays },
-    { label: "Subskrypcje", href: "/membership", icon: CreditCard },
+    { label: "Powiadomienia", href: "/profile/notifications", icon: Bell },
+    { label: "Subskrypcje i rozliczenia", href: "/profile/billing", icon: CreditCard },
     { label: "Ustawienia Konta", href: "/profile/settings", icon: Settings },
 ];
 
 /**
  * Komponent ProfileSidebar renderuje boczny panel nawigacyjny dla użytkownika w sekcji profilu.
- * Wyświetla informacje o użytkowniku, jego statusie VIP oraz przyciski nawigacyjne do różnych sekcji profilu.
- * Umożliwia również wylogowanie się z konta.
- * Panel jest responsywny i widoczny tylko na większych ekranach (lg).
+ * Pozostaje przyklejony pod paskiem nawigacji podczas przewijania zawartości i przesuwa się
+ * w górę dopiero na samym dole strony, aby odsłonić stopkę.
+ *
+ * @param props Obiekt właściwości zawierający dane użytkownika.
+ * @param props.user Obiekt zawierający dane zalogowanego użytkownika (imię, email, status VIP, wizyty).
  */
 export default function ProfileSidebar({ user }: ProfileSidebarProps) {
     const pathname = usePathname();
@@ -38,20 +43,12 @@ export default function ProfileSidebar({ user }: ProfileSidebarProps) {
     }
 
     return (
-        <aside className="sticky top-18.25 h-[calc(100vh-73px)] w-72 shrink-0 rounded-2xl bg-[#1c1b1b] border-r border-surface-container-high z-30 hidden lg:flex flex-col justify-between p-6">
-            <div className="flex flex-col gap-6">
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-surface-container-high flex items-center justify-center text-primary">
-                        <Scissors className="w-5 h-5" />
-                    </div>
-                    <div>
-                        <span className="font-headline font-bold text-sm tracking-wider uppercase text-on-surface block">
-                            FRESH CUT
-                        </span>
-                        <span className="text-[10px] uppercase text-on-surface-variant tracking-widest block font-medium">
-                            Panel Klienta
-                        </span>
-                    </div>
+        <aside className="w-72 shrink-0 bg-surface-container-lowest border-r border-surface-container-high/60 z-20 hidden lg:flex flex-col justify-between px-6 relative">
+            <div className="sticky top-20 pt-6 flex flex-col gap-6 z-10 bg-surface-container-lowest">
+                <div className="pt-2 pb-1 border-b border-surface-container-high/40">
+                    <span className="font-headline font-black text-sm tracking-[0.25em] uppercase text-on-surface block">
+                        Panel Klienta
+                    </span>
                 </div>
 
                 <div>
@@ -81,32 +78,44 @@ export default function ProfileSidebar({ user }: ProfileSidebarProps) {
                 </div>
             </div>
 
-            <div className="pt-4 border-t border-surface-container-high/60">
+            <div className="sticky bottom-0 pt-4 pb-6 border-t border-surface-container-high/60 bg-surface-container-lowest z-10 mt-auto">
                 <div className="bg-surface-container p-3 rounded-xl flex items-center justify-between border border-surface-container-high/50">
-                    <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-9 h-9 rounded-full bg-primary/20 border border-primary/40 flex items-center justify-center shrink-0">
-                            <span className="text-primary text-xs font-bold">
-                                {user.fullName ? user.fullName[0].toUpperCase() : "U"}
-                            </span>
+                    <div className="flex items-center gap-2.5 min-w-0 pr-2">
+                        <div className="relative w-9 h-9 rounded-xl bg-surface-container-highest border border-primary/20 flex items-center justify-center shrink-0 overflow-hidden text-primary font-bold text-xs shadow-inner">
+                            {user.avatarUrl ? (
+                                <Image
+                                    src={user.avatarUrl}
+                                    alt={user.fullName}
+                                    fill
+                                    className="object-cover"
+                                    unoptimized
+                                />
+                            ) : (
+                                <span>{user.fullName ? user.fullName[0].toUpperCase() : "U"}</span>
+                            )}
                         </div>
-                        <div className="flex flex-col min-w-0">
-                            <span className="text-xs font-semibold text-on-surface truncate">
-                                {user.fullName}
-                            </span>
-                            <div className="flex items-center gap-1">
-                                <Sparkles className="w-2.5 h-2.5 text-primary" />
-                                <span className="text-[9px] uppercase tracking-wider font-bold text-primary truncate">
-                                    {user.isVip ? "Klubowicz VIP" : "Klient"}
+                        <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-on-surface truncate block">
+                                    {user.fullName}
                                 </span>
+                                {user.isVip && (
+                                    <span className="bg-primary/20 text-primary border border-primary/40 text-[9px] font-black px-1.5 py-0.2 rounded uppercase shrink-0">
+                                        VIP
+                                    </span>
+                                )}
                             </div>
+                            <span className="text-[10px] text-on-surface-variant truncate block">
+                                {user.email}
+                            </span>
                         </div>
                     </div>
 
                     <button
-                        onClick={handleLogout}
-                        className="p-2 rounded-lg text-on-surface-variant hover:bg-red-500/10 hover:text-red-400 transition-colors cursor-pointer shrink-0"
-                        title="Wyloguj się"
                         type="button"
+                        onClick={handleLogout}
+                        title="Wyloguj się"
+                        className="p-2 rounded-lg hover:bg-surface-container-highest text-on-surface-variant hover:text-red-400 transition-colors shrink-0 cursor-pointer"
                     >
                         <LogOut className="w-4 h-4" />
                     </button>

@@ -82,7 +82,7 @@ export default function ServicesView({ services, isLoggedIn }: ServicesViewProps
                                 key={service.id}
                                 className="group flex flex-col bg-[#161616] rounded-2xl overflow-hidden border border-surface-container-high hover:border-primary/40 transition-all duration-300 shadow-xl hover:-translate-y-1"
                             >
-                                <div className="relative h-60 w-full overflow-hidden rounded-t-2xl bg-[#201f1f] transform-gpu">
+                                <div className="relative h-60 w-full overflow-hidden rounded-t-2xl bg-surface-input transform-gpu">
                                     <div className="absolute inset-0 w-full h-full overflow-hidden transform-gpu">
                                         <Image
                                             src={service.imageUrl || "/images/placeholder.webp"}

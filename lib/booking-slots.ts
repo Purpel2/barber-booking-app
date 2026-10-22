@@ -1,6 +1,6 @@
 import { minutesToTimeString } from "./time-utils";
 
-export const SLOT_INTERVAL = 15; // 15-minutowa siatka bazowa
+export const SLOT_INTERVAL = 15;
 
 interface BarberWorkHours {
     startMinute: number;
@@ -13,28 +13,55 @@ interface ActiveReservation {
 }
 
 interface AvailableSlotsParams {
-    dateStr: string; // "YYYY-MM-DD"
-    workHours: BarberWorkHours | null; // null jeśli dzień wolny
+    dateStr: string;
+    workHours: BarberWorkHours | null;
     isDayOff: boolean;
     reservations: ActiveReservation[];
-    totalDurationNeeded: number; // duration + bufferTime (np. 60)
+    totalDurationNeeded: number;
 }
 
 /**
- * Funkcja calculateAvailableSlots oblicza dostępne sloty czasowe dla barbera w danym dniu, biorąc pod uwagę jego godziny pracy, istniejące rezerwacje oraz całkowity czas potrzebny na usługę (czas trwania + czas buforowy).
- * 
- * @param workHours - Godziny pracy barbera w minutach od północy (startMinute, endMinute). Jeśli barber nie pracuje tego dnia, przekazujemy null.
- * @param isDayOff - Czy dzień jest dniem wolnym.
- * @param reservations - Tablica istniejących rezerwacji.
- * @param totalDurationNeeded - Całkowity czas potrzebny na usługę (czas trwania + czas buforowy).
+ * Funkcja calculateAvailableSlots oblicza dostępne sloty czasowe dla barbera w określonym dniu, uwzględniając harmonogram pracy, dni wolne od pracy oraz istniejące rezerwacje.
+ * Zwraca tablicę dostępnych slotów czasowych w formacie "HH:mm".
+ * @param dateStr - Data w formacie "YYYY-MM-DD" dla której obliczane są dostępne sloty.
+ * @param workHours - Obiekt zawierający godziny pracy barbera (start i koniec w minutach od północy).
+ * @param isDayOff - Flaga wskazująca, czy dany dzień jest dniem wolnym od pracy.
+ * @param reservations - Tablica istniejących rezerwacji barbera w danym dniu.
+ * @param totalDurationNeeded - Całkowity czas trwania wybranych usług w minutach.
+ * @returns Tablica dostępnych slotów czasowych w formacie "HH:mm".
+ * @throws Jeśli podane godziny pracy są nieprawidłowe lub całkowity czas trwania usług przekracza dostępny czas pracy, funkcja zwraca pustą tablicę.
+ * @remarks Funkcja uwzględnia aktualną godzinę w strefie czasowej Warszawy, aby wykluczyć przeszłe sloty w dniu bieżącym.
  */
 export function calculateAvailableSlots({
+    dateStr,
     workHours,
     isDayOff,
     reservations,
     totalDurationNeeded,
 }: AvailableSlotsParams): string[] {
     if (isDayOff || !workHours) {
+        return [];
+    }
+
+    const now = new Date();
+    const todayWarsawStr = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Warsaw",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    }).format(now);
+
+    const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Europe/Warsaw",
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false,
+    }).formatToParts(now);
+    const currentWarsawMinute =
+        (Number(parts.find((p) => p.type === "hour")?.value || 0) % 24) * 60 +
+        Number(parts.find((p) => p.type === "minute")?.value || 0);
+
+    if (dateStr < todayWarsawStr) {
         return [];
     }
 
@@ -48,15 +75,12 @@ export function calculateAvailableSlots({
     const totalSlots = Math.floor(totalWorkingMinutes / SLOT_INTERVAL);
     const slotsRequired = Math.ceil(totalDurationNeeded / SLOT_INTERVAL);
 
-    // Tablica zajętości: false = wolny, true = zajęty
     const slotGrid = new Array<boolean>(totalSlots).fill(false);
 
-    // Zaznaczamy zajęte sloty na podstawie istniejących rezerwacji
     for (const res of reservations) {
         const resStartMin = res.startTime.getUTCHours() * 60 + res.startTime.getUTCMinutes();
         const resEndMin = res.endTime.getUTCHours() * 60 + res.endTime.getUTCMinutes();
 
-        // Wyliczamy indeksy względem rozpoczęcia pracy barbera
         const rawStartIndex = Math.floor((resStartMin - startMinute) / SLOT_INTERVAL);
         const rawEndIndex = Math.ceil((resEndMin - startMinute) / SLOT_INTERVAL);
 
@@ -68,7 +92,6 @@ export function calculateAvailableSlots({
         }
     }
 
-    // Wyszukujemy ciągłe okna o długości `slotsRequired`
     const availableSlots: string[] = [];
 
     for (let i = 0; i <= totalSlots - slotsRequired; i++) {
@@ -83,6 +106,9 @@ export function calculateAvailableSlots({
 
         if (canFit) {
             const slotMinute = startMinute + i * SLOT_INTERVAL;
+            if (dateStr === todayWarsawStr && slotMinute <= currentWarsawMinute) {
+                continue;
+            }
             availableSlots.push(minutesToTimeString(slotMinute));
         }
     }

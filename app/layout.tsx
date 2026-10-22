@@ -28,11 +28,10 @@ export const metadata: Metadata = {
 
 
 /**
- * RootLayout jest głównym komponentem układu aplikacji, który renderuje strukturę HTML dla wszystkich stron.
- * Zawiera pasek nawigacji, główną sekcję treści oraz stopkę. Dodatkowo obsługuje autoryzację użytkownika przy użyciu Supabase.
- * Jeśli użytkownik jest zalogowany, pobiera jego dane z bazy danych przy użyciu Prisma i przekazuje je do komponentu NavBar.
- * W przypadku braku zalogowanego użytkownika, NavBar renderuje odpowiednie elementy dla niezalogowanych użytkowników.
- * Komponent korzysta z czcionek Inter i Epilogue z Google Fonts oraz zapewnia responsywność i dostępność.
+ * RootLayout jest głównym komponentem układu aplikacji, który renderuje strukturę HTML strony, w tym pasek nawigacji, główną zawartość oraz stopkę.
+ * Pobiera dane użytkownika z Supabase i Prisma, w tym informacje o zalogowanym użytkowniku oraz liczbę nieprzeczytanych powiadomień.
+ * @param children - Zawartość strony, która zostanie wyrenderowana w głównym obszarze układu.
+ * @returns Zwraca element JSX reprezentujący główny układ aplikacji.
  */
 export default async function RootLayout({
   children,
@@ -43,10 +42,16 @@ export default async function RootLayout({
   const { data: { user: authUser } } = await supabase.auth.getUser();
 
   let databaseUser = null;
+  let unreadNotificationsCount = 0;
   if (authUser) {
-    databaseUser = await prisma.user.findUnique({
-      where: { id: authUser.id },
-    });
+    [databaseUser, unreadNotificationsCount] = await Promise.all([
+      prisma.user.findUnique({
+        where: { id: authUser.id },
+      }),
+      prisma.notification.count({
+        where: { userId: authUser.id, isRead: false },
+      }),
+    ]);
   }
 
   return (
@@ -59,7 +64,7 @@ export default async function RootLayout({
         {/* kontenrer dla wyskakujacych powiadomien */}
         <Toaster position="top-center" reverseOrder={false} />
         {/* pasek nawigacji  */}
-        <NavBar user={databaseUser} />
+        <NavBar user={databaseUser} unreadNotificationsCount={unreadNotificationsCount} />
         <main className="grow">
           {children}
         </main>

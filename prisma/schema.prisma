@@ -28,6 +28,7 @@ model User {
   phonePrefix  String        @default("+48")
   phoneBody    String
   role         Role          @default(USER)
+  avatarUrl    String?
   favoriteBarberId     String?
   favoriteBarber       Barber?         @relation(fields: [favoriteBarberId], references: [id], onDelete: SetNull)
   createdAt    DateTime      @default(now())
@@ -35,6 +36,7 @@ model User {
   reservations Reservation[]
   reviews      Review[]
   subscriptions UserSubscription[]
+  notifications Notification[]
 
 }
 
@@ -237,4 +239,27 @@ model UserSubscription {
 
     @@index([userId])
     @@index([planId])
+}
+
+enum NotificationType {
+  APPOINTMENT
+  CANCELLATION
+  SUBSCRIPTION
+  PROMOTION
+  ANNOUNCEMENT
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  type      NotificationType @default(ANNOUNCEMENT)
+  linkUrl   String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, isRead])
+  @@index([userId, createdAt])
 }

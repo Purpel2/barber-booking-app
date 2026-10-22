@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
+import Link from "next/link";
+import Image from "next/image";
 import {
     Calendar,
     Clock,
@@ -9,13 +11,18 @@ import {
     Star,
     ExternalLink,
     FilterX,
+    CreditCard,
+    Banknote,
     CheckCircle2,
     XCircle,
+    Download,
+    RotateCcw,
+    History,
 } from "lucide-react";
-import { createGoogleCalendarUrl } from "@/lib/calendar";
+import { createGoogleCalendarUrl, createIcsDataUrl } from "@/lib/calendar";
 import CancelButton from "@/app/profile/_components/CancelButton";
+import ServiceCollageThumbnail from "@/app/profile/_components/ServiceCollageThumbnail";
 import ReviewModal from "./ReviewModal";
-import Image from "next/image";
 
 export type AppointmentItem = {
     id: string;
@@ -46,27 +53,319 @@ interface AppointmentsListProps {
     initialReservations: AppointmentItem[];
     barbers: { id: string; name: string }[];
     services: { id: string; name: string }[];
+    initialReviewId?: string;
 }
 
 type TabType = "all" | "upcoming" | "completed" | "cancelled";
 
 /**
- * Komponent AppointmentsList renderuje listę wizyt użytkownika w sekcji profilu.
- * Umożliwia filtrowanie wizyt według statusu, barbera, usługi oraz okresu czasu.
- * Wyświetla szczegóły wizyty, takie jak data, godzina, barber, usługi, status płatności oraz możliwość dodania opinii.
- * Obsługuje również stany ładowania i brak wizyt dla wybranych kryteriów.
+ * Funkcja getRelativeTimeDescription oblicza i zwraca opis względnego czasu w języku polskim na podstawie podanej daty wizyty i aktualnej daty. Zwraca odpowiednie opisy, takie jak "Dziś", "Jutro", "Pojutrze", "za X dni", "za tydzień" lub "za X tygodni".
+ * @param dateString - Data wizyty w formacie string.
+ * @param now - Aktualna data.
+ * @returns Opis względnego czasu.
+ */
+function getRelativeTimeDescription(dateString: string, now: Date): string {
+    const target = new Date(dateString);
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfTarget = new Date(target.getFullYear(), target.getMonth(), target.getDate());
+    const diffDays = Math.round((startOfTarget.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 0) return "Dziś";
+    if (diffDays === 1) return "Jutro";
+    if (diffDays === 2) return "Pojutrze";
+    if (diffDays > 2 && diffDays <= 7) return `za ${diffDays} dni`;
+    if (diffDays > 7 && diffDays <= 30) {
+        const weeks = Math.floor(diffDays / 7);
+        return weeks === 1 ? "za tydzień" : `za ${weeks} tyg.`;
+    }
+    return `za ${diffDays} dni`;
+}
+
+/**
+ * Funkcja formatVisitDate formatuje datę wizyty w języku polskim, uwzględniając strefę czasową salonu. Zwraca sformatowaną datę w formacie "dzień miesiąc rok".
+ * @param dateString - Data wizyty w formacie string.
+ * @returns Sformatowana data.
+ */
+function formatVisitDate(dateString: string): string {
+    return new Date(dateString).toLocaleDateString("pl-PL", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        timeZone: "Europe/Warsaw",
+    });
+}
+
+/**
+ * Funkcja formatVisitTime formatuje godzinę wizyty w języku polskim, uwzględniając strefę czasową salonu. Zwraca sformatowaną godzinę w formacie "HH:MM".
+ * @param dateString - Data i godzina wizyty w formacie string.
+ * @returns Sformatowana godzina.
+ */
+function formatVisitTime(dateString: string): string {
+    return new Date(dateString).toLocaleTimeString("pl-PL", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Warsaw",
+    });
+}
+
+/**
+ * Funkcja AppointmentCard renderuje kartę wizyty z informacjami o wizycie, takimi jak data, godzina, barber, usługi, cena, status płatności i możliwość dodania do kalendarza. Zawiera również przyciski do zmiany terminu wizyty, anulowania wizyty oraz wystawienia opinii.
+ * @param res - Obiekt reprezentujący wizytę.
+ * @param now - Aktualna data.
+ * @param reviewedIds - Zbiór identyfikatorów już ocenionych wizyt.
+ * @param onReview - Funkcja wywoływana po wystawieniu opinii o wizycie.
+ * @returns - Komponent karty wizyty z możliwością edycji i anulowania.
+ */
+function AppointmentCard({
+    res,
+    now,
+    reviewedIds,
+    onReview,
+}: {
+    res: AppointmentItem;
+    now: Date;
+    reviewedIds: Set<string>;
+    onReview: (res: AppointmentItem) => void;
+}) {
+    const totalDuration = res.services.reduce(
+        (acc, s) => acc + (s.duration || 30),
+        0
+    );
+    const isPaidOnline = res.paymentMethod === "ONLINE";
+    const isCancelled = res.status === "CANCELLED";
+    const isUpcoming = !isCancelled && new Date(res.startTime) >= now;
+    const isCompleted = !isCancelled && new Date(res.startTime) < now;
+
+    const daysSinceVisit = Math.floor(
+        (now.getTime() - new Date(res.startTime).getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+    const canReview = isCompleted && daysSinceVisit <= 30;
+    const hasActions = isUpcoming || isCompleted || canReview;
+
+    const googleCalUrl = isUpcoming
+        ? createGoogleCalendarUrl({
+            title: `Wizyta: Fresh Cut (${res.barber.name})`,
+            description: `Usługi: ${res.services.map((s) => s.name).join(", ")}`,
+            location: "Fresh Cut Barbershop",
+            startTime: new Date(res.startTime),
+            durationMinutes: totalDuration,
+        })
+        : "";
+
+    return (
+        <div
+            className={`rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col gap-3 transition-all ${isUpcoming
+                ? "bg-linear-to-br from-surface-container/70 via-surface-container to-surface-container border-2 border-primary/40 shadow-primary/5 hover:border-primary/60"
+                : isCancelled
+                    ? "bg-surface-container border border-surface-container-high opacity-60 hover:opacity-85"
+                    : "bg-surface-container border border-surface-container-high hover:border-surface-container-highest"
+                }`}
+        >
+            <div className="w-full flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1">
+                    <ServiceCollageThumbnail
+                        services={res.services}
+                        className={`w-20 h-20 sm:w-24 sm:h-24 rounded-xl border bg-surface-container-high ${isUpcoming ? "border-primary/40" : "border-outline-variant/30"
+                            }`}
+                    />
+
+                    <div className="space-y-1.5 min-w-0 flex-1 pr-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                            {isUpcoming && (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-md bg-primary/15 text-primary border border-primary/30 tracking-wide">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
+                                    <span>NADCHODZĄCA</span>
+                                    <span className="text-on-surface-variant font-medium">
+                                        • {getRelativeTimeDescription(res.startTime, now)}
+                                    </span>
+                                </span>
+                            )}
+
+                            {isPaidOnline ? (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium tracking-wide bg-surface-container-high text-on-surface border border-outline-variant/30">
+                                    <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+                                    <span>Opłacono online</span>
+                                </span>
+                            ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium tracking-wide bg-surface-container-high text-on-surface-variant border border-outline-variant/30">
+                                    <Banknote className="w-3.5 h-3.5 text-primary" />
+                                    <span>Płatność w salonie</span>
+                                </span>
+                            )}
+
+                            {isCancelled ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-surface-container-high/70 text-on-surface-variant/80 border border-outline-variant/25">
+                                    <XCircle className="w-3.5 h-3.5 text-red-400/80 shrink-0" />
+                                    <span>Anulowano</span>
+                                </span>
+                            ) : isCompleted ? (
+                                <span className="inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-lg bg-surface-container-high/70 text-on-surface-variant border border-outline-variant/25">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400/80 shrink-0" />
+                                    <span>Zrealizowano</span>
+                                </span>
+                            ) : null}
+                        </div>
+
+                        <h3 className="font-headline font-black text-base sm:text-lg text-on-surface tracking-tight truncate">
+                            {res.services.map((s) => s.name).join(" + ")}
+                        </h3>
+
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-on-surface-variant pt-0.5">
+                            <div className="flex items-center gap-1.5">
+                                <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-container relative shrink-0 border border-primary/30">
+                                    {res.barber.imageUrl ? (
+                                        <Image
+                                            src={res.barber.imageUrl}
+                                            alt={res.barber.name}
+                                            fill
+                                            sizes="20px"
+                                            className="object-cover"
+                                        />
+                                    ) : (
+                                        <UserIcon className="w-3 h-3 text-primary m-1" />
+                                    )}
+                                </div>
+                                <span className="font-semibold text-on-surface">
+                                    {res.barber.name}
+                                </span>
+                            </div>
+                            <span>•</span>
+                            <span className="flex items-center gap-1 font-mono text-[11px]">
+                                <Clock className="w-3.5 h-3.5 text-primary" /> {totalDuration} min
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="shrink-0 flex flex-col items-end text-right gap-1.5 sm:self-start">
+                    <p className={`text-xs sm:text-sm font-bold whitespace-nowrap ${isUpcoming ? "text-primary" : "text-on-surface-variant"}`}>
+                        {formatVisitDate(res.startTime)}
+                        <span className="mx-1.5 opacity-60">•</span>
+                        <span className="font-mono">{formatVisitTime(res.startTime)}</span>
+                    </p>
+
+                    <span className="text-xl sm:text-2xl font-black text-white block leading-tight">
+                        {res.totalPrice} zł
+                    </span>
+                </div>
+            </div>
+
+            {hasActions && (
+                <div className="pt-2.5 border-t border-surface-container-high/60 flex flex-wrap items-center justify-between gap-3">
+                    {isUpcoming ? (
+                        <>
+                            <div className="flex flex-wrap items-center gap-2">
+                                {googleCalUrl && (
+                                    <a
+                                        href={googleCalUrl}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-bright text-[11px] font-bold uppercase tracking-wider text-on-surface transition-colors"
+                                    >
+                                        <Calendar className="w-3.5 h-3.5 text-primary" />
+                                        <span>Google</span>
+                                        <ExternalLink className="w-2.5 h-2.5 opacity-60" />
+                                    </a>
+                                )}
+                                <a
+                                    href={createIcsDataUrl({
+                                        title: `Wizyta: Fresh Cut (${res.barber.name})`,
+                                        description: `Usługi: ${res.services.map((s) => s.name).join(", ")}`,
+                                        location: "Fresh Cut Barbershop",
+                                        startTime: new Date(res.startTime),
+                                        durationMinutes: totalDuration,
+                                    })}
+                                    download={`wizyta-${res.id.slice(0, 6)}.ics`}
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-bright text-[11px] font-bold uppercase tracking-wider text-on-surface transition-colors"
+                                >
+                                    <Download className="w-3.5 h-3.5 text-primary" />
+                                    <span>Apple (.ics)</span>
+                                </a>
+                            </div>
+                            <div className="flex items-center gap-2 ml-auto">
+                                <Link
+                                    href={`/reservations?rescheduleId=${res.id}&barberId=${res.barber.id}&serviceIds=${res.services.map((s) => s.serviceId).join(",")}`}
+                                    className="px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-bright border border-surface-container-high text-xs font-semibold text-on-surface hover:text-primary transition-colors"
+                                >
+                                    Zmień termin
+                                </Link>
+                                <CancelButton reservationId={res.id} />
+                            </div>
+                        </>
+                    ) : (
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 w-full">
+                            <Link
+                                href={`/reservations?barberId=${res.barber.id}&serviceIds=${res.services.map((s) => s.serviceId).join(",")}`}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-bright border border-surface-container-high text-xs font-semibold text-on-surface hover:text-primary transition-colors cursor-pointer"
+                            >
+                                <RotateCcw className="w-3.5 h-3.5 text-primary" />
+                                <span>Zarezerwuj ponownie</span>
+                            </Link>
+                            {isCompleted && (
+                                <div className="ml-auto">
+                                    {reviewedIds.has(res.id) ? (
+                                        <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-md text-emerald-400 bg-emerald-950/20 border border-emerald-500/25">
+                                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                            <span>Opinia wystawiona</span>
+                                        </span>
+                                    ) : canReview ? (
+                                        <button
+                                            type="button"
+                                            onClick={() => onReview(res)}
+                                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary hover:bg-primary-hover text-background font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-primary/20 cursor-pointer"
+                                        >
+                                            <Star className="w-3.5 h-3.5 fill-background text-background" />
+                                            <span>Oceń wizytę ({30 - daysSinceVisit} dni)</span>
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            disabled
+                                            title="Minęło 30 dni od wizyty"
+                                            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-surface-container/60 border border-outline-variant/20 text-on-surface-variant/40 text-xs font-bold uppercase tracking-wider cursor-not-allowed select-none"
+                                        >
+                                            <Star className="w-3.5 h-3.5 text-on-surface-variant/30" />
+                                            <span>Oceń wizytę</span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+        </div>
+    );
+}
+
+/**
+ * Główny komponent listy wizyt, który wyświetla wszystkie wizyty użytkownika z możliwością filtrowania i sortowania.
+ * @param initialReservations - Początkowa lista rezerwacji.
+ * @param barbers - Lista barberów.
+ * @param services - Lista usług.
+ * @param initialReviewId - Opcjonalny identyfikator wizyty, dla której ma być wyświetlony modal opinii.
+ * @returns - Komponent listy wizyt z możliwością filtrowania i sortowania.
  */
 export default function AppointmentsList({
     initialReservations,
     barbers,
     services,
+    initialReviewId,
 }: AppointmentsListProps) {
     const [activeTab, setActiveTab] = useState<TabType>("all");
     const [selectedBarberId, setSelectedBarberId] = useState<string>("ALL");
     const [selectedServiceId, setSelectedServiceId] = useState<string>("ALL");
     const [timeRange, setTimeRange] = useState<string>("ALL");
 
-    const [reviewTarget, setReviewTarget] = useState<AppointmentItem | null>(null);
+    const [reviewTarget, setReviewTarget] = useState<AppointmentItem | null>(() => {
+        if (initialReviewId) {
+            const match = initialReservations.find((r) => r.id === initialReviewId);
+            if (match && !match.hasReview) return match;
+        }
+        return null;
+    });
+
     const [reviewedIds, setReviewedIds] = useState<Set<string>>(() => {
         const set = new Set<string>();
         for (const res of initialReservations) {
@@ -106,17 +405,8 @@ export default function AppointmentsList({
         return { upcoming, completed, cancelled };
     }, [initialReservations, now]);
 
-    const filteredList = useMemo(() => {
-        const source =
-            activeTab === "all"
-                ? [...initialReservations].sort(
-                    (a, b) =>
-                        new Date(b.startTime).getTime() -
-                        new Date(a.startTime).getTime()
-                )
-                : categorized[activeTab as Exclude<TabType, "all">];
-
-        return source.filter((res) => {
+    const filterItem = useCallback(
+        (res: AppointmentItem) => {
             if (selectedBarberId !== "ALL" && res.barber.id !== selectedBarberId) {
                 return false;
             }
@@ -145,17 +435,36 @@ export default function AppointmentsList({
             }
 
             return true;
-        });
-    }, [
-        categorized,
-        initialReservations,
-        activeTab,
-        selectedBarberId,
-        selectedServiceId,
-        timeRange,
-        now,
-    ]);
+        },
+        [selectedBarberId, selectedServiceId, timeRange, now]
+    );
 
+    const filteredUpcoming = useMemo(
+        () => categorized.upcoming.filter(filterItem),
+        [categorized.upcoming, filterItem]
+    );
+
+    const filteredCompleted = useMemo(
+        () => categorized.completed.filter(filterItem),
+        [categorized.completed, filterItem]
+    );
+
+    const filteredCancelled = useMemo(
+        () => categorized.cancelled.filter(filterItem),
+        [categorized.cancelled, filterItem]
+    );
+
+    const filteredHistory = useMemo(() => {
+        return [...filteredCompleted, ...filteredCancelled].sort(
+            (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
+        );
+    }, [filteredCompleted, filteredCancelled]);
+
+
+    /**
+     * Funkcja resetująca filtry.
+     * Ustawia wszystkie filtry na wartość "ALL", co oznacza brak aktywnych filtrów.
+     */
     function resetFilters() {
         setSelectedBarberId("ALL");
         setSelectedServiceId("ALL");
@@ -166,6 +475,15 @@ export default function AppointmentsList({
         selectedBarberId !== "ALL" ||
         selectedServiceId !== "ALL" ||
         timeRange !== "ALL";
+
+    const hasAnyResults =
+        activeTab === "all"
+            ? filteredUpcoming.length > 0 || filteredHistory.length > 0
+            : activeTab === "upcoming"
+                ? filteredUpcoming.length > 0
+                : activeTab === "completed"
+                    ? filteredCompleted.length > 0
+                    : filteredCancelled.length > 0;
 
     return (
         <div className="space-y-6">
@@ -233,7 +551,7 @@ export default function AppointmentsList({
                     <select
                         value={selectedBarberId}
                         onChange={(e) => setSelectedBarberId(e.target.value)}
-                        className="w-full bg-[#1c1b1b] border border-surface-container-high rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+                        className="w-full bg-surface-container border border-surface-container-high rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer"
                     >
                         <option value="ALL">Wszyscy barberzy</option>
                         {barbers.map((b) => (
@@ -251,7 +569,7 @@ export default function AppointmentsList({
                     <select
                         value={selectedServiceId}
                         onChange={(e) => setSelectedServiceId(e.target.value)}
-                        className="w-full bg-[#1c1b1b] border border-surface-container-high rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+                        className="w-full bg-surface-container border border-surface-container-high rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer"
                     >
                         <option value="ALL">Wszystkie usługi</option>
                         {services.map((s) => (
@@ -269,7 +587,7 @@ export default function AppointmentsList({
                     <select
                         value={timeRange}
                         onChange={(e) => setTimeRange(e.target.value)}
-                        className="w-full bg-[#1c1b1b] border border-surface-container-high rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer"
+                        className="w-full bg-surface-container border border-surface-container-high rounded-xl px-3 py-2 text-xs text-on-surface focus:outline-none focus:border-primary cursor-pointer"
                     >
                         <option value="ALL">Cała historia</option>
                         <option value="30_DAYS">Ostatnie 30 dni</option>
@@ -279,8 +597,8 @@ export default function AppointmentsList({
                 </div>
             </div>
 
-            {filteredList.length === 0 ? (
-                <div className="p-12 text-center bg-[#1c1b1b] border border-surface-container-high rounded-2xl space-y-3">
+            {!hasAnyResults ? (
+                <div className="p-12 text-center bg-surface-container border border-surface-container-high rounded-2xl space-y-3">
                     <Scissors className="w-8 h-8 text-on-surface-variant/40 mx-auto" />
                     <p className="text-sm font-bold text-on-surface">
                         Brak wizyt dla wybranych kryteriów
@@ -306,192 +624,103 @@ export default function AppointmentsList({
                         </button>
                     )}
                 </div>
-            ) : (
-                <div className="space-y-4">
-                    {filteredList.map((res) => {
-                        const totalDuration = res.services.reduce(
-                            (acc, s) => acc + (s.duration || 30),
-                            0
-                        );
-                        const primaryImage = res.services[0]?.imageUrl;
-                        const isPaidOnline = res.paymentMethod === "ONLINE";
-                        const isCancelled = res.status === "CANCELLED";
-                        const isCompleted = !isCancelled && new Date(res.startTime) < now;
+            ) : activeTab === "all" ? (
+                <div className="space-y-8">
+                    <section className="space-y-3">
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex items-center gap-2.5">
+                                <span className="relative flex h-2.5 w-2.5">
+                                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-primary"></span>
+                                </span>
+                                <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-on-surface">
+                                    Nadchodzące wizyty ({filteredUpcoming.length})
+                                </h2>
+                            </div>
+                        </div>
 
-                        const daysSinceVisit = Math.floor(
-                            (now.getTime() - new Date(res.startTime).getTime()) /
-                            (1000 * 60 * 60 * 24)
-                        );
-                        const canReview = isCompleted && daysSinceVisit <= 30;
-                        const isUpcoming = !isCancelled && new Date(res.startTime) >= now;
-                        const hasActions = isUpcoming || canReview;
-
-                        const googleCalUrl = isUpcoming
-                            ? createGoogleCalendarUrl({
-                                title: `Wizyta: Fresh Cut (${res.barber.name})`,
-                                description: `Usługi: ${res.services.map((s) => s.name).join(", ")}`,
-                                location: "Fresh Cut Barbershop",
-                                startTime: new Date(res.startTime),
-                                durationMinutes: totalDuration,
-                            })
-                            : "";
-
-                        const isPast = new Date(res.startTime) < now;
-                        const isGreyedOut = isCancelled || isPast;
-
-                        return (
-                            <div
-                                key={res.id}
-                                className={`bg-[#1c1b1b] border border-surface-container-high rounded-2xl p-4 sm:p-5 shadow-xl flex flex-col gap-3 transition-all ${isGreyedOut ? "opacity-60 hover:opacity-80" : ""
-                                    }`}
-                            >
-                                <div className="w-full flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                                    <div className="flex items-start sm:items-center gap-4 min-w-0 flex-1">
-                                        <div className="relative w-20 h-20 sm:w-24 sm:h-24 shrink-0 rounded-xl overflow-hidden bg-surface-container-high border border-primary/20 shadow-md">
-                                            {primaryImage ? (
-                                                <Image
-                                                    src={primaryImage}
-                                                    alt="Usługa"
-                                                    fill
-                                                    sizes="(max-width: 640px) 80px, 96px"
-                                                    className="object-cover"
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex flex-col items-center justify-center bg-[#201f1f] text-primary">
-                                                    <Scissors className="w-6 h-6" />
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        <div className="space-y-1.5 min-w-0 flex-1 pr-2">
-                                            <div className="flex flex-wrap items-center gap-2">
-                                                {isPaidOnline ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                                                        <span>💳</span>
-                                                        <span>Opłacono online</span>
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                                                        <span>📍</span>
-                                                        <span>Płatność w salonie</span>
-                                                    </span>
-                                                )}
-
-                                                {isCancelled ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-red-950/40 text-red-400 border border-red-900/60">
-                                                        <XCircle className="w-3 h-3" />
-                                                        <span>Anulowano</span>
-                                                    </span>
-                                                ) : isCompleted ? (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-950/40 text-emerald-400 border border-emerald-900/60">
-                                                        <CheckCircle2 className="w-3 h-3" />
-                                                        <span>Zrealizowano</span>
-                                                    </span>
-                                                ) : (
-                                                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
-                                                        <span>Termin potwierdzony</span>
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            <h3 className="font-headline font-black text-base sm:text-lg text-on-surface tracking-tight truncate">
-                                                {res.services.map((s) => s.name).join(" + ")}
-                                            </h3>
-
-                                            <div className="flex flex-wrap items-center gap-3 text-xs text-on-surface-variant pt-0.5">
-                                                <div className="flex items-center gap-1.5">
-                                                    <div className="w-5 h-5 rounded-full overflow-hidden bg-surface-container relative shrink-0 border border-primary/30">
-                                                        {res.barber.imageUrl ? (
-                                                            <Image
-                                                                src={res.barber.imageUrl}
-                                                                alt={res.barber.name}
-                                                                fill
-                                                                sizes="20px"
-                                                                className="object-cover"
-                                                            />
-                                                        ) : (
-                                                            <UserIcon className="w-3 h-3 text-primary m-1" />
-                                                        )}
-                                                    </div>
-                                                    <span className="font-semibold text-on-surface">
-                                                        {res.barber.name}
-                                                    </span>
-                                                </div>
-                                                <span>•</span>
-                                                <span className="flex items-center gap-1 font-mono text-[11px]">
-                                                    <Clock className="w-3 h-3 text-primary" /> {totalDuration} min
-                                                </span>
-                                            </div>
-                                        </div>
+                        {filteredUpcoming.length > 0 ? (
+                            <div className="space-y-3.5">
+                                {filteredUpcoming.map((res) => (
+                                    <AppointmentCard
+                                        key={res.id}
+                                        res={res}
+                                        now={now}
+                                        reviewedIds={reviewedIds}
+                                        onReview={setReviewTarget}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="p-5 rounded-2xl bg-surface-container border border-dashed border-surface-container-high flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-10 h-10 rounded-xl bg-surface-container flex items-center justify-center text-primary shrink-0">
+                                        <Calendar className="w-5 h-5" />
                                     </div>
-
-                                    <div className="shrink-0 flex flex-col items-end text-right gap-1.5 sm:self-start">
-                                        <p className="text-xs sm:text-sm font-bold text-primary whitespace-nowrap">
-                                            {new Date(res.startTime).toLocaleDateString("pl-PL", {
-                                                day: "numeric",
-                                                month: "short",
-                                                year: "numeric",
-                                                timeZone: "Europe/Warsaw",
-                                            })}
-                                            <span className="mx-1.5 opacity-60">•</span>
-                                            <span className="font-mono">
-                                                {new Date(res.startTime).toLocaleTimeString("pl-PL", {
-                                                    hour: "2-digit",
-                                                    minute: "2-digit",
-                                                    timeZone: "Europe/Warsaw",
-                                                })}
-                                            </span>
+                                    <div>
+                                        <p className="text-xs font-bold text-on-surface">
+                                            Brak zaplanowanych wizyt
                                         </p>
-
-                                        <span className="text-xl sm:text-2xl font-black text-white block leading-tight">
-                                            {res.totalPrice} zł
-                                        </span>
+                                        <p className="text-[11px] text-on-surface-variant">
+                                            Twój terminarz jest wolny. Umów kolejną wizytę u barbera.
+                                        </p>
                                     </div>
                                 </div>
-
-                                {hasActions && (
-                                    <div className="pt-2.5 border-t border-surface-container-high/60 flex flex-wrap items-center justify-between gap-3">
-                                        {isUpcoming ? (
-                                            <>
-                                                <div className="flex items-center gap-2">
-                                                    {googleCalUrl && (
-                                                        <a
-                                                            href={googleCalUrl}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface-container hover:bg-surface-bright text-[11px] font-bold uppercase tracking-wider text-on-surface transition-colors"
-                                                        >
-                                                            <Calendar className="w-3 h-3 text-primary" />
-                                                            <span>Google Kalendarz</span>
-                                                            <ExternalLink className="w-2.5 h-2.5 opacity-60" />
-                                                        </a>
-                                                    )}
-                                                </div>
-                                                <CancelButton reservationId={res.id} />
-                                            </>
-                                        ) : canReview ? (
-                                            <div className="ml-auto opacity-100">
-                                                {reviewedIds.has(res.id) ? (
-                                                    <span className="text-[11px] font-bold text-emerald-400">
-                                                        ✓ Opinia wystawiona
-                                                    </span>
-                                                ) : (
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => setReviewTarget(res)}
-                                                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary hover:bg-primary-hover text-background font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-primary/20 cursor-pointer"
-                                                    >
-                                                        <Star className="w-3.5 h-3.5 fill-background text-background" />
-                                                        <span>Oceń wizytę ({30 - daysSinceVisit} dni)</span>
-                                                    </button>
-                                                )}
-                                            </div>
-                                        ) : null}
-                                    </div>
-                                )}
+                                <Link
+                                    href="/reservations"
+                                    className="px-4 py-2 rounded-xl bg-primary hover:bg-primary-hover text-background font-bold text-xs uppercase tracking-wider transition-all shrink-0"
+                                >
+                                    Umów wizytę
+                                </Link>
                             </div>
-                        );
-                    })}
+                        )}
+                    </section>
+
+                    <section className="space-y-3 pt-2">
+                        <div className="flex items-center justify-between gap-3 border-t border-surface-container-high/60 pt-6">
+                            <div className="flex items-center gap-2">
+                                <History className="w-4 h-4 text-on-surface-variant/70" />
+                                <h2 className="text-xs sm:text-sm font-bold uppercase tracking-wider text-on-surface">
+                                    Historia wizyt ({filteredHistory.length})
+                                </h2>
+                            </div>
+                        </div>
+
+                        {filteredHistory.length > 0 ? (
+                            <div className="space-y-3.5">
+                                {filteredHistory.map((res) => (
+                                    <AppointmentCard
+                                        key={res.id}
+                                        res={res}
+                                        now={now}
+                                        reviewedIds={reviewedIds}
+                                        onReview={setReviewTarget}
+                                    />
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="p-4 rounded-xl bg-surface-container border border-surface-container-high text-xs text-on-surface-variant/70">
+                                Brak zakończonych wizyt w wybranym okresie.
+                            </div>
+                        )}
+                    </section>
+                </div>
+            ) : (
+                <div className="space-y-3.5">
+                    {(activeTab === "upcoming"
+                        ? filteredUpcoming
+                        : activeTab === "completed"
+                            ? filteredCompleted
+                            : filteredCancelled
+                    ).map((res) => (
+                        <AppointmentCard
+                            key={res.id}
+                            res={res}
+                            now={now}
+                            reviewedIds={reviewedIds}
+                            onReview={setReviewTarget}
+                        />
+                    ))}
                 </div>
             )}
 

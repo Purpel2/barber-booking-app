@@ -1,27 +1,42 @@
 "use client";
 
 import { useState, useEffect, useRef, useTransition, Suspense, useMemo } from "react";
+import Image from "next/image";
 import { DayPicker } from "react-day-picker";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { useSearchParams, useRouter } from "next/navigation";
 import { getBarbers, getAllServicesWithBarbers, getBarberDayDetails, createReservation, getMonthCalendarData } from "./actions";
+import { rescheduleReservationAction } from "@/app/profile/actions";
+import { parseWarsawTimeToUTC } from "@/lib/calendar";
 
-// Funkcja do ustawienia początkowej daty rezerwacji (dzisiaj lub najbliższy poniedziałek, jeśli dzisiaj jest weekend)
+/**
+ * Funkcja getInitialBookingDate zwraca początkową datę rezerwacji, uwzględniając aktualną godzinę w strefie czasowej Warszawy oraz dni wolne od pracy (soboty i niedziele).
+ * Zwraca obiekt Date reprezentujący początkową datę rezerwacji.
+ * @returns Początkowa data rezerwacji.
+ */
 function getInitialBookingDate(): Date {
     const now = new Date();
-    const dayOfWeek = now.getDay();
+    const formatter = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Europe/Warsaw",
+        hour: "numeric",
+        hour12: false,
+    });
+    const warsawHour = Number(formatter.format(now)) % 24;
 
+    const target = new Date(now);
+    if (warsawHour >= 18) {
+        target.setDate(target.getDate() + 1);
+    }
+
+    const dayOfWeek = target.getDay();
     if (dayOfWeek === 6) {
-        now.setDate(now.getDate() + 2);
-        return now;
-    }
-    if (dayOfWeek === 0) {
-        now.setDate(now.getDate() + 1);
-        return now;
+        target.setDate(target.getDate() + 2);
+    } else if (dayOfWeek === 0) {
+        target.setDate(target.getDate() + 1);
     }
 
-    return now;
+    return target;
 }
 
 interface BarberItem {
@@ -52,12 +67,17 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 /**
- * Komponent BookingContent renderuje interaktywny interfejs rezerwacji, umożliwiając użytkownikom wybór barbera, usług, daty i godziny rezerwacji.
- * Pobiera dane barberów i usług z serwera oraz aktualizuje dostępność slotów w zależności od wybranych opcji.
+ * Komponent BookingContent renderuje interfejs użytkownika dla procesu rezerwacji wizyty u barbera.
+ * Zawiera wybór barbera, usług, daty i godziny wizyty oraz podsumowanie rezerwacji.
+ * Zarządza stanem aplikacji, w tym wybranym barberem, usługami, datą, godziną oraz metodą płatności.
+ * Obsługuje również logikę ładowania danych z serwera, w tym dostępnych terminów i szczegółów dnia dla wybranego barbera.
+ * @returns - Komponent interfejsu użytkownika dla procesu rezerwacji wizyty.
+ * @remarks - Komponent używa React hooks, takich jak useState, useEffect, useRef i useTransition do zarządzania stanem i efektami ubocznymi. Używa również DayPicker do wyboru daty wizyty oraz funkcji pomocniczych do formatowania daty i czasu.
  */
 function BookingContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
+    const rescheduleId = searchParams.get("rescheduleId");
     const [isPending, startTransition] = useTransition();
     const summaryRef = useRef<HTMLDivElement>(null);
     const calendarSectionRef = useRef<HTMLDivElement>(null);
@@ -74,7 +94,10 @@ function BookingContent() {
     const [visibleMonth, setVisibleMonth] = useState<Date>(new Date());
     const [availableSlots, setAvailableSlots] = useState<string[]>([]);
     const [bookedTimes, setBookedTimes] = useState<string[]>([]);
+    const [pastSlots, setPastSlots] = useState<string[]>([]);
+    const [allPassedForToday, setAllPassedForToday] = useState<boolean>(false);
     const [slotsUnavailableByDuration, setSlotsUnavailableByDuration] = useState<string[]>([]);
+    const [slotsUnavailableByReservation, setSlotsUnavailableByReservation] = useState<string[]>([]);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
     const [isWorkingDay, setIsWorkingDay] = useState<boolean>(true);
     const [offReason, setOffReason] = useState<string | null>(null);
@@ -95,19 +118,23 @@ function BookingContent() {
 
             if (barbersRes.success && barbersRes.data.length > 0) {
                 setBarbers(barbersRes.data);
-                const urlBarber = searchParams.get("barber")?.toLowerCase();
+                const urlBarber = (searchParams.get("barber") || searchParams.get("barberId"))?.toLowerCase();
                 if (urlBarber) {
-                    const matched = barbersRes.data.find((b) => b.name.toLowerCase().includes(urlBarber));
+                    const matched = barbersRes.data.find(
+                        (b) => b.id.toLowerCase() === urlBarber || b.name.toLowerCase().includes(urlBarber)
+                    );
                     if (matched) setSelectedBarberId(matched.id);
                 }
             }
 
             if (servicesRes.success && servicesRes.data.length > 0) {
                 setAllServices(servicesRes.data);
-                const urlServiceId = searchParams.get("serviceId");
-                if (urlServiceId) {
-                    const matchedService = servicesRes.data.find((s) => s.id === urlServiceId);
-                    if (matchedService) setSelectedServices([matchedService]);
+                const rawServiceIds = searchParams.get("serviceIds")?.split(",").map((s) => s.trim()).filter(Boolean) || [];
+                const singleServiceId = searchParams.get("serviceId");
+                const targetIds = rawServiceIds.length > 0 ? rawServiceIds : (singleServiceId ? [singleServiceId] : []);
+                if (targetIds.length > 0) {
+                    const matchedServices = servicesRes.data.filter((s) => targetIds.includes(s.id));
+                    if (matchedServices.length > 0) setSelectedServices(matchedServices);
                 }
             }
         }
@@ -139,36 +166,34 @@ function BookingContent() {
     }, [selectedBarberId, visibleMonth]);
 
     useEffect(() => {
-        if (!selectedBarberId || !selectedDate) return;
-        async function loadDayDetails() {
+        if (!selectedBarberId || !dateStr) return;
+        let isCancelled = false;
+
+        async function fetchDayDetails() {
             setIsLoadingSlots(true);
             const res = await getBarberDayDetails(selectedBarberId, dateStr, requiredBlock || 30);
+            if (isCancelled) return;
+
             if (res.success) {
                 setIsWorkingDay(res.isWorking);
                 setOffReason(res.reason);
                 setAvailableSlots(res.slots);
                 setBookedTimes(res.unavailableSlots);
+                setPastSlots(res.pastSlots || []);
+                setAllPassedForToday(Boolean(res.allPassedForToday));
                 setSlotsUnavailableByDuration(res.slotsUnavailableByDuration || []);
-                if (selectedTime && res.unavailableSlots.includes(selectedTime)) setSelectedTime(null);
+                setSlotsUnavailableByReservation(res.slotsUnavailableByReservation || []);
+                setSelectedTime((prev) => (prev && res.unavailableSlots.includes(prev) ? null : prev));
             }
             setIsLoadingSlots(false);
         }
-        loadDayDetails();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedBarberId, selectedDate]);
 
-    useEffect(() => {
-        if (!selectedBarberId || !selectedDate) return;
-        async function updateSlotDurations() {
-            const res = await getBarberDayDetails(selectedBarberId, dateStr, requiredBlock || 30);
-            if (res.success) {
-                setSlotsUnavailableByDuration(res.slotsUnavailableByDuration || []);
-                if (selectedTime && res.unavailableSlots.includes(selectedTime)) setSelectedTime(null);
-            }
-        }
-        updateSlotDurations();
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [requiredBlock]);
+        fetchDayDetails();
+
+        return () => {
+            isCancelled = true;
+        };
+    }, [selectedBarberId, dateStr, requiredBlock]);
 
     useEffect(() => {
         if (selectedTime && selectedServices.length > 0) {
@@ -220,7 +245,29 @@ function BookingContent() {
         if (e) e.preventDefault();
         if (!selectedDate || !selectedTime || selectedServices.length === 0 || !selectedBarberId) return;
 
+        const dateFormatted = format(selectedDate, "yyyy-MM-dd");
+        const slotUtc = parseWarsawTimeToUTC(dateFormatted, selectedTime);
+        if (slotUtc.getTime() <= Date.now()) {
+            alert("Wybrany termin już minął. Wybierz termin w przyszłości.");
+            return;
+        }
+
         startTransition(async () => {
+            if (rescheduleId) {
+                const res = await rescheduleReservationAction({
+                    reservationId: rescheduleId,
+                    newDate: format(selectedDate, "yyyy-MM-dd"),
+                    newTime: selectedTime,
+                });
+
+                if (res.success) {
+                    router.push("/profile/appointments?rescheduled=true");
+                } else {
+                    alert(res.message);
+                }
+                return;
+            }
+
             const res = await createReservation({
                 date: format(selectedDate, "yyyy-MM-dd"),
                 time: selectedTime,
@@ -244,6 +291,20 @@ function BookingContent() {
 
     return (
         <div className="pt-20 pb-12 px-4 md:px-8 max-w-360 mx-auto min-h-screen text-on-surface">
+            {rescheduleId && (
+                <div className="mb-6 p-4 rounded-xl bg-primary/10 border border-primary/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <span className="text-on-surface">
+                        Zmieniasz termin istniejącej rezerwacji. Wybierz nową datę oraz godzinę poniżej.
+                    </span>
+                    <button
+                        type="button"
+                        onClick={() => router.push("/profile/appointments")}
+                        className="text-primary font-bold uppercase tracking-wider text-[11px] hover:underline cursor-pointer self-start sm:self-auto shrink-0"
+                    >
+                        Anuluj zmianę
+                    </button>
+                </div>
+            )}
             <div className="mb-8">
                 <span className="text-primary font-['Inter'] text-xs tracking-[0.25em] uppercase block mb-1">
                     System Rezerwacji
@@ -276,8 +337,7 @@ function BookingContent() {
                                     }`}
                             >
                                 <div className="relative w-14 h-14 rounded-full overflow-hidden shrink-0 border-2 border-primary/40">
-                                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                                    <img src={barber.imageUrl} alt={barber.name} className="w-full h-full object-cover" />
+                                    <Image src={barber.imageUrl} alt={barber.name} fill sizes="56px" className="object-cover" />
                                 </div>
                                 <div>
                                     <h4 className={`font-bold text-base ${isSelected ? "text-primary" : "text-on-surface"}`}>
@@ -400,6 +460,13 @@ function BookingContent() {
                                 {!isWorkingDay && <span className="text-xs text-[#f87171] font-medium">{offReason}</span>}
                             </div>
 
+                            {allPassedForToday && (
+                                <div className="mb-4 p-3.5 rounded-xl bg-surface-container/90 border border-outline-variant/30 text-xs text-on-surface-variant flex items-center gap-2.5">
+                                    <span className="text-primary text-sm font-bold">ℹ️</span>
+                                    <span>Godziny przyjęć na ten dzień już minęły. Wybierz kolejną datę w kalendarzu.</span>
+                                </div>
+                            )}
+
                             {isLoadingSlots ? (
                                 <div className="py-8 flex flex-col items-center justify-center text-center opacity-70 space-y-2">
                                     <span className="text-2xl animate-spin">⏳</span>
@@ -410,6 +477,7 @@ function BookingContent() {
                             ) : (
                                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2.5">
                                     {availableSlots.map((time) => {
+                                        const isPast = pastSlots.includes(time);
                                         const isBooked = bookedTimes.includes(time);
                                         const isUnavailableByDuration = slotsUnavailableByDuration.includes(time);
                                         const isSelected = selectedTime === time;
@@ -417,15 +485,26 @@ function BookingContent() {
                                         return (
                                             <div key={time} className="relative group">
                                                 <button
-                                                    disabled={isBooked}
+                                                    disabled={isBooked || isPast}
+                                                    title={
+                                                        isPast
+                                                            ? "Ten termin już minął"
+                                                            : isUnavailableByDuration
+                                                                ? "Zbyt krótki przedział czasowy na wybrane usługi"
+                                                                : isBooked
+                                                                    ? "Termin zajęty"
+                                                                    : undefined
+                                                    }
                                                     onClick={() => handleSelectTime(time)}
                                                     className={`py-3 px-2 rounded-xl transition-all font-semibold border text-sm flex items-center justify-center w-full relative ${isSelected
                                                         ? "bg-primary text-on-primary border-primary shadow-lg shadow-primary/20 scale-[1.02] font-bold ring-2 ring-primary/50"
-                                                        : isBooked
+                                                        : isPast
                                                             ? "bg-[#252424]/40 text-on-surface-variant/20 border-transparent cursor-not-allowed line-through select-none"
                                                             : isUnavailableByDuration
-                                                                ? "bg-[#2b2a2a]/60 text-[#e5e2e1]/50 border-orange-400/30 hover:border-orange-400 cursor-pointer"
-                                                                : "bg-[#2b2a2a] text-[#e5e2e1] border-outline-variant/40 hover:border-primary hover:bg-surface-container-highest cursor-pointer"
+                                                                ? "bg-[#2b2a2a]/60 text-[#e5e2e1]/50 border-orange-400/40 hover:border-orange-400 cursor-not-allowed"
+                                                                : isBooked
+                                                                    ? "bg-[#252424]/40 text-on-surface-variant/20 border-transparent cursor-not-allowed line-through select-none"
+                                                                    : "bg-[#2b2a2a] text-[#e5e2e1] border-outline-variant/40 hover:border-primary hover:bg-surface-container-highest cursor-pointer"
                                                         }`}
                                                 >
                                                     {time}
@@ -498,7 +577,7 @@ function BookingContent() {
                                                             let consecutiveFreeSlots = 0;
                                                             for (let i = timeIndex; i < availableSlots.length; i++) {
                                                                 const slotTime = availableSlots[i];
-                                                                if (bookedTimes.includes(slotTime)) break;
+                                                                if (slotsUnavailableByReservation.includes(slotTime)) break;
                                                                 consecutiveFreeSlots++;
                                                             }
                                                             const maxAvailableMinutes = consecutiveFreeSlots * 15;
@@ -526,8 +605,7 @@ function BookingContent() {
                                                             <div className="flex items-start gap-3">
                                                                 {service.imageUrl && (
                                                                     <div className="relative w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-background border border-surface-container-highest">
-                                                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                                                        <img src={service.imageUrl} alt={service.name} className="w-full h-full object-cover" />
+                                                                        <Image src={service.imageUrl} alt={service.name} fill sizes="48px" className="object-cover" />
                                                                     </div>
                                                                 )}
 
@@ -592,22 +670,24 @@ function BookingContent() {
                                 </div>
                             </div>
 
-                            <div className="mb-6">
-                                <label className="text-xs uppercase tracking-wider text-on-surface-variant/80 block mb-2 font-medium">Wybierz formę płatności</label>
-                                <div className="grid grid-cols-2 gap-3">
-                                    <button type="button" onClick={() => setPaymentMethod("ONLINE")} className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${paymentMethod === "ONLINE" ? "bg-primary/10 border-primary text-on-surface shadow-md shadow-primary/10" : "bg-surface-container-high/40 border-surface-container-highest text-on-surface-variant hover:border-primary/40"}`}>
-                                        <div className={`text-sm font-bold ${paymentMethod === "ONLINE" ? "text-primary" : ""}`}>Płatność online</div>
-                                        <div className="text-[11px] opacity-70 mt-0.5">Szybki przelew / BLIK</div>
-                                    </button>
-                                    <button type="button" onClick={() => setPaymentMethod("ON_SITE")} className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${paymentMethod === "ON_SITE" ? "bg-primary/10 border-primary text-on-surface shadow-md shadow-primary/10" : "bg-surface-container-high/40 border-surface-container-highest text-on-surface-variant hover:border-primary/40"}`}>
-                                        <div className={`text-sm font-bold ${paymentMethod === "ON_SITE" ? "text-primary" : ""}`}>W salonie</div>
-                                        <div className="text-[11px] opacity-70 mt-0.5">Gotówka / Karta</div>
-                                    </button>
+                            {!rescheduleId && (
+                                <div className="mb-6">
+                                    <label className="text-xs uppercase tracking-wider text-on-surface-variant/80 block mb-2 font-medium">Wybierz formę płatności</label>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        <button type="button" onClick={() => setPaymentMethod("ONLINE")} className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${paymentMethod === "ONLINE" ? "bg-primary/10 border-primary text-on-surface shadow-md shadow-primary/10" : "bg-surface-container-high/40 border-surface-container-highest text-on-surface-variant hover:border-primary/40"}`}>
+                                            <div className={`text-sm font-bold ${paymentMethod === "ONLINE" ? "text-primary" : ""}`}>Płatność online</div>
+                                            <div className="text-[11px] opacity-70 mt-0.5">Szybki przelew / BLIK</div>
+                                        </button>
+                                        <button type="button" onClick={() => setPaymentMethod("ON_SITE")} className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${paymentMethod === "ON_SITE" ? "bg-primary/10 border-primary text-on-surface shadow-md shadow-primary/10" : "bg-surface-container-high/40 border-surface-container-highest text-on-surface-variant hover:border-primary/40"}`}>
+                                            <div className={`text-sm font-bold ${paymentMethod === "ON_SITE" ? "text-primary" : ""}`}>W salonie</div>
+                                            <div className="text-[11px] opacity-70 mt-0.5">Gotówka / Karta</div>
+                                        </button>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             <button className="w-full bg-primary text-on-primary py-4 rounded-xl font-bold text-base hover:scale-[1.01] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-primary/20 cursor-pointer" disabled={!selectedDate || !selectedTime || selectedServices.length === 0 || isPending} onClick={handleBooking}>
-                                {isPending ? "Zapisywanie w systemie..." : paymentMethod === "ONLINE" ? "Przejdź do płatności online" : "Zatwierdź i Zarezerwuj"}
+                                {isPending ? "Zapisywanie w systemie..." : rescheduleId ? "Zatwierdź nowy termin" : paymentMethod === "ONLINE" ? "Przejdź do płatności online" : "Zatwierdź i Zarezerwuj"}
                             </button>
                         </div>
                     )}
@@ -618,8 +698,9 @@ function BookingContent() {
 }
 
 /**
- * Funkcja ReservationsPage renderuje stronę rezerwacji, która zawiera komponent BookingContent. Komponent ten jest opakowany w Suspense,
- * aby umożliwić wyświetlanie fallbacku podczas ładowania danych.
+ * Komponent ReservationsPage jest głównym komponentem strony rezerwacji.
+ * Renderuje zawartość rezerwacji w trybie Suspense, zapewniając fallback podczas ładowania.
+ * @returns - Komponent strony rezerwacji.
  */
 export default function ReservationsPage() {
     return (

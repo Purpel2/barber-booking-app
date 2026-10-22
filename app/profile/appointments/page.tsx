@@ -4,12 +4,23 @@ import { redirect } from "next/navigation";
 import AppointmentsList from "./_components/AppointmentsList";
 
 /**
- * Podstrona profilu użytkownika wyświetlająca listę jego wizyt (rezerwacji).
- * Sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, następuje przekierowanie na stronę logowania.
- * Pobiera dane rezerwacji użytkownika z bazy danych przy użyciu Prisma, w tym informacje o barberze i usługach.
- * Renderuje komponent AppointmentsList z pobranymi danymi wizyt, barberów i usług.
+ * Interfejs AppointmentsPageProps definiuje typy właściwości przekazywanych do komponentu AppointmentsPage. Zawiera opcjonalny parametr reviewId,
+ *  który może być użyty do filtrowania lub identyfikowania recenzji związanych z wizytami użytkownika.
+ * @interface AppointmentsPageProps
+ * @property {Promise<{ reviewId?: string }>} searchParams - Obiekt zawierający opcjonalny parametr reviewId, który może być użyty do filtrowania lub identyfikowania recenzji związanych z wizytami użytkownika.
  */
-export default async function AppointmentsPage() {
+interface AppointmentsPageProps {
+    searchParams: Promise<{ reviewId?: string }>;
+}
+
+/**
+ * Funkcja AppointmentsPage renderuje stronę listy wizyt użytkownika. Sprawdza, czy użytkownik jest zalogowany, pobiera dane wizyt z bazy danych i wyświetla je w formie listy.
+ * @param props - Właściwości przekazywane do komponentu, zawierające parametry wyszukiwania.
+ * @returns - Zwraca element JSX reprezentujący stronę listy wizyt użytkownika.
+ * @throws - Jeśli użytkownik nie jest zalogowany, następuje przekierowanie do strony logowania.
+ */
+export default async function AppointmentsPage({ searchParams }: AppointmentsPageProps) {
+    const resolvedParams = await searchParams;
     const supabase = await createClient();
     const {
         data: { user: authUser },
@@ -89,6 +100,7 @@ export default async function AppointmentsPage() {
                 initialReservations={formattedReservations}
                 barbers={barbers}
                 services={services}
+                initialReviewId={resolvedParams?.reviewId}
             />
         </div>
     );

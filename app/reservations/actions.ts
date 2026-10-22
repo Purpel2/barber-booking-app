@@ -3,28 +3,15 @@
 import { prisma } from "@/lib/prisma";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
+import { parseWarsawTimeToUTC } from "@/lib/calendar";
 
 
-function parseWarsawTimeToUTC(dateStr: string, timeStr: string): Date {
-    const [y, m, d] = dateStr.split("-").map(Number);
-    const [h, min] = timeStr.split(":").map(Number);
 
-    const refDate = new Date(Date.UTC(y, m - 1, d, h, min, 0));
-    const formatter = new Intl.DateTimeFormat("en-US", {
-        timeZone: "Europe/Warsaw",
-        hour: "numeric",
-        minute: "numeric",
-        hour12: false,
-    });
-
-    const parts = formatter.formatToParts(refDate);
-    const warsawHour = Number(parts.find((p) => p.type === "hour")?.value || 0) % 24;
-    const warsawMinute = Number(parts.find((p) => p.type === "minute")?.value || 0);
-
-    const diffMinutes = (warsawHour * 60 + warsawMinute) - (h * 60 + min);
-    return new Date(refDate.getTime() - diffMinutes * 60 * 1000);
-}
-
+/**
+ * Funkcja getWarsawMinuteOfDay zwraca liczbę minut od północy w strefie czasowej Warszawy.
+ * @param date - Obiekt Date, dla którego ma zostać obliczona liczba minut od północy. Domyślnie używana jest bieżąca data.
+ * @return - Liczba minut od północy w strefie czasowej Warszawy.
+ */
 function getWarsawMinuteOfDay(date: Date): number {
     const formatter = new Intl.DateTimeFormat("en-US", {
         timeZone: "Europe/Warsaw",
@@ -38,14 +25,31 @@ function getWarsawMinuteOfDay(date: Date): number {
     return h * 60 + m;
 }
 
+/**
+ * Funkcja getWarsawDateString zwraca datę w formacie "YYYY-MM-DD" dla strefy czasowej Warszawy.
+ * Jest używana do porównywania dat w kontekście rezerwacji i dostępności barbera.
+ * @param date - Obiekt Date, dla którego ma zostać zwrócona data w formacie "YYYY-MM-DD". Domyślnie używana jest bieżąca data.
+ * @returns - String
+ */
+function getWarsawDateString(date: Date = new Date()): string {
+    const formatter = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Warsaw",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+    });
+    return formatter.format(date);
+}
+
 
 
 /**
- * Funkcja getBarbers pobiera listę aktywnych barberów z bazy danych przy użyciu Prisma.
+ * Funkcja getBarbers pobiera listę aktywnych barberów z bazy danych Prisma.
  * Zwraca obiekt zawierający status sukcesu oraz dane barberów w przypadku powodzenia.
  * W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca pustą listę barberów.
  * Funkcja jest używana w kontekście serwera (server-side) i może być wywoływana w komponentach serwera lub w akcjach serwera.
- * W przypadku powodzenia, zwracane dane zawierają identyfikator, imię, rolę i adres URL zdjęcia każdego barbera.
+ * W przypadku powodzenia, zwracane dane zawierają identyfikator, nazwę, rolę oraz URL zdjęcia dla każdego barbera.
+ * @returns - Obiekt z statusem sukcesu i danymi barberów.
  */
 export async function getBarbers() {
     try {
@@ -67,11 +71,13 @@ export async function getBarbers() {
 }
 
 /**
- * Funkcja getAllServicesWithBarbers pobiera listę wszystkich usług dostępnych w systemie wraz z przypisanymi barberami.
+ * Funkcja getAllServicesWithBarbers pobiera listę wszystkich usług dostępnych w salonie wraz z przypisanymi barberami z bazy danych Prisma.
  * Zwraca obiekt zawierający status sukcesu oraz dane usług w przypadku powodzenia.
  * W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca pustą listę usług.
  * Funkcja jest używana w kontekście serwera (server-side) i może być wywoływana w komponentach serwera lub w akcjach serwera.
  * W przypadku powodzenia, zwracane dane zawierają identyfikator, nazwę, cenę, kategorię oraz listę przypisanych barberów dla każdej usługi.
+ * @returns - Obiekt z statusem sukcesu i danymi usług.
+ * @remarks - Funkcja korzysta z biblioteki Prisma do komunikacji z bazą danych.
  */
 export async function getAllServicesWithBarbers() {
     try {
@@ -102,11 +108,16 @@ export async function getAllServicesWithBarbers() {
 }
 
 /**
- * Funkcja getBarberDayDetails pobiera szczegóły dnia pracy barbera, w tym dostępne sloty godzinowe, na podstawie podanego identyfikatora barbera i daty.
- * Zwraca obiekt zawierający status sukcesu, informacje o dostępności barbera, powód niedostępności (jeśli dotyczy), listę wszystkich slotów godzinowych oraz listę niedostępnych slotów.
- * W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca obiekt z informacją o błędzie serwera.
+ * Funkcja getBarberDayDetails pobiera szczegółowe informacje o dostępności barbera w określonym dniu, w tym dostępne sloty czasowe, zajętość slotów oraz powody niedostępności.
+ * Zwraca obiekt zawierający status sukcesu, informacje o dostępności, powody niedostępności oraz listy slotów czasowych.
+ * W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca obiekt z informacją o błędzie.
  * Funkcja jest używana w kontekście serwera (server-side) i może być wywoływana w komponentach serwera lub w akcjach serwera.
- * W przypadku powodzenia, zwracane dane zawierają informacje o tym, czy barber jest dostępny w danym dniu, powód niedostępności (jeśli dotyczy), listę wszystkich slotów godzinowych oraz listę niedostępnych slotów.
+ * W przypadku powodzenia, zwracane dane zawierają informacje o tym, czy barber jest dostępny w danym dniu, powody niedostępności, listę wszystkich slotów czasowych,
+ *  listę zajętych slotów oraz informację o tym, czy wszystkie sloty na dany dzień już minęły.
+ * @returns - Obiekt z statusem sukcesu i danymi szczegółów dnia barbera.
+ * @param barberId - Identyfikator barbera, dla którego mają zostać pobrane szczegóły dnia.
+ * @param dateStr - Data w formacie "YYYY-MM-DD", dla której mają zostać pobrane szczegóły dnia barbera.
+ * @param requiredDuration - Wymagany czas trwania usługi w minutach, domyślnie ustawiony na 30 minut.
  */
 export async function getBarberDayDetails(
     barberId: string,
@@ -119,6 +130,24 @@ export async function getBarberDayDetails(
         const rawDay = targetDate.getDay();
         const dayOfWeek = rawDay === 0 ? 7 : rawDay;
 
+        const now = new Date();
+        const todayWarsawStr = getWarsawDateString(now);
+        const currentWarsawMinute = getWarsawMinuteOfDay(now);
+        const isPastDay = dateStr < todayWarsawStr;
+        const isToday = dateStr === todayWarsawStr;
+
+        if (isPastDay) {
+            return {
+                success: true,
+                isWorking: false,
+                reason: "Wybrany dzień już minął",
+                slots: [],
+                unavailableSlots: [],
+                pastSlots: [],
+                allPassedForToday: false,
+            };
+        }
+
         if (dayOfWeek === 7) {
             return {
                 success: true,
@@ -126,6 +155,8 @@ export async function getBarberDayDetails(
                 reason: "Salon nieczynny w niedziele",
                 slots: [],
                 unavailableSlots: [],
+                pastSlots: [],
+                allPassedForToday: false,
             };
         }
 
@@ -143,6 +174,8 @@ export async function getBarberDayDetails(
                 reason: "Dzień wolny barbera",
                 slots: [],
                 unavailableSlots: [],
+                pastSlots: [],
+                allPassedForToday: false,
             };
         }
 
@@ -174,6 +207,8 @@ export async function getBarberDayDetails(
                 reason: dayOff.reason || "Urlop barbera",
                 slots: allSlots,
                 unavailableSlots: allSlots,
+                pastSlots: [],
+                allPassedForToday: false,
             };
         }
 
@@ -205,6 +240,7 @@ export async function getBarberDayDetails(
         });
 
         const unavailableSlots: string[] = [];
+        const pastSlots: string[] = [];
         const slotsUnavailableByDuration: string[] = [];
         const slotsUnavailableByReservation: string[] = [];
         const durationNeeded = requiredDuration > 0 ? requiredDuration : 30;
@@ -213,6 +249,14 @@ export async function getBarberDayDetails(
             const h = Math.floor(t / 60).toString().padStart(2, "0");
             const min = (t % 60).toString().padStart(2, "0");
             const timeStr = `${h}:${min}`;
+
+            const isPastSlot = isToday && t <= currentWarsawMinute;
+
+            if (isPastSlot) {
+                unavailableSlots.push(timeStr);
+                pastSlots.push(timeStr);
+                continue;
+            }
 
             const reqStart = t;
             const reqEnd = t + durationNeeded;
@@ -243,12 +287,16 @@ export async function getBarberDayDetails(
             }
         }
 
+        const allPassedForToday = isToday && allSlots.length > 0 && pastSlots.length === allSlots.length;
+
         return {
             success: true,
             isWorking: true,
             reason: null,
             slots: allSlots,
             unavailableSlots,
+            pastSlots,
+            allPassedForToday,
             slotsUnavailableByDuration,
             slotsUnavailableByReservation,
         };
@@ -260,14 +308,22 @@ export async function getBarberDayDetails(
             reason: "Błąd serwera",
             slots: [],
             unavailableSlots: [],
+            pastSlots: [],
+            allPassedForToday: false,
         };
     }
 }
 
 /**
- * Funkcja getMonthCalendarData pobiera dane kalendarza dla danego barbera w określonym miesiącu i roku.
- * Zwraca obiekt zawierający informacje o zajętości dni w danym miesiącu.
+ * Funkcja getMonthCalendarData pobiera dane kalendarza dla danego barbera w określonym miesiącu i roku, zwracając procent zajętości slotów czasowych dla każdego dnia miesiąca.
+ * Zwraca obiekt, w którym klucze to daty w formacie "YYYY-MM-DD", a wartości to procent zajętości slotów (0-100) lub null, jeśli barber jest niedostępny w danym dniu.
  * W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca pusty obiekt.
+ * Funkcja jest używana w kontekście serwera (server-side) i może być wywoływana w komponentach serwera lub w akcjach serwera.
+ * W przypadku powodzenia, zwracane dane zawierają informacje o procentowej zajętości slotów dla każdego dnia miesiąca, uwzględniając harmonogram barbera, nadpisania dni pracy oraz rezerwacje.
+ * @param barberId - Identyfikator barbera, dla którego mają zostać pobrane dane kalendarza.
+ * @param year - Rok, dla którego mają zostać pobrane dane kalendarza.
+ * @param month - Miesiąc, dla którego mają zostać pobrane dane kalendarza.
+ * @returns - Obiekt z danymi kalendarza dla danego barbera w określonym miesiącu i roku.
  */
 export async function getMonthCalendarData(
     barberId: string,
@@ -276,6 +332,10 @@ export async function getMonthCalendarData(
 ): Promise<Record<string, number | null>> {
     try {
         const result: Record<string, number | null> = {};
+
+        const now = new Date();
+        const todayWarsawStr = getWarsawDateString(now);
+        const currentWarsawMinute = getWarsawMinuteOfDay(now);
 
         const schedules = await prisma.barberSchedule.findMany({
             where: { barberId },
@@ -365,7 +425,8 @@ export async function getMonthCalendarData(
 
                 let bookedSlots = 0;
                 for (let t = workStart; t < workEnd; t += 15) {
-                    if (busyRanges.some((busy) => t < busy.end && t + 15 > busy.start)) {
+                    const isPast = (dateString < todayWarsawStr) || (dateString === todayWarsawStr && t <= currentWarsawMinute);
+                    if (isPast || busyRanges.some((busy) => t < busy.end && t + 15 > busy.start)) {
                         bookedSlots++;
                     }
                 }
@@ -374,7 +435,6 @@ export async function getMonthCalendarData(
                 continue;
             }
 
-            // Domyślne weekendy (Niedziela=7, Sobota=6)
             if (dayOfWeek === 7 || dayOfWeek === 6) {
                 result[dateString] = null;
                 continue;
@@ -415,7 +475,8 @@ export async function getMonthCalendarData(
 
             let bookedSlots = 0;
             for (let t = workStart; t < workEnd; t += 15) {
-                if (busyRanges.some((busy) => t < busy.end && t + 15 > busy.start)) {
+                const isPast = (dateString < todayWarsawStr) || (dateString === todayWarsawStr && t <= currentWarsawMinute);
+                if (isPast || busyRanges.some((busy) => t < busy.end && t + 15 > busy.start)) {
                     bookedSlots++;
                 }
             }
@@ -431,11 +492,13 @@ export async function getMonthCalendarData(
 }
 
 /**
- * Funkcja getProfileData pobiera dane profilu użytkownika, w tym informacje o użytkowniku, jego rezerwacjach, dostępnych barberach oraz aktywnej subskrypcji.
- * Najpierw sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, zwraca null.
- * Następnie pobiera dane użytkownika z bazy danych przy użyciu Prisma, w tym informacje o jego ulubionym barberze.
- * Pobiera również listę rezerwacji użytkownika, dostępnych barberów oraz aktywną subskrypcję, jeśli istnieje.
- * Zwraca obiekt zawierający wszystkie te dane lub null w przypadku błędów.
+ * Funkcja createReservation tworzy nową rezerwację w systemie, sprawdzając dostępność wybranego terminu i usług oraz uwzględniając harmonogram barbera.
+ * Zwraca obiekt zawierający status sukcesu, komunikat oraz identyfikator rezerwacji w przypadku powodzenia.
+ * W przypadku wystąpienia błędów podczas tworzenia rezerwacji, funkcja loguje błąd i zwraca obiekt z informacją o błędzie.
+ * Funkcja jest używana w kontekście serwera (server-side) i może być wywoływana w komponentach serwera lub w akcjach serwera.
+ * W przypadku powodzenia, zwracane dane zawierają identyfikator nowo utworzonej rezerwacji oraz komunikat potwierdzający dokonanie rezerwacji.
+ * @param data - Obiekt zawierający dane rezerwacji, w tym datę, godzinę, identyfikatory usług, identyfikator barbera oraz metodę płatności.
+ * @returns - Obiekt z statusem sukcesu, komunikatem oraz identyfikatorem rezerwacji w przypadku powodzenia.
  */
 export async function createReservation(data: {
     date: string;
@@ -487,6 +550,13 @@ export async function createReservation(data: {
 
         const reservationDateTime = parseWarsawTimeToUTC(data.date, data.time);
         const reservationEndTime = new Date(reservationDateTime.getTime() + (totalDuration + maxBuffer) * 60 * 1000);
+
+        if (reservationDateTime.getTime() <= Date.now()) {
+            return {
+                success: false,
+                message: "Nie można zarezerwować terminu, który już minął. Wybierz termin w przyszłości.",
+            };
+        }
 
         const startOfDay = parseWarsawTimeToUTC(data.date, "00:00");
         const endOfDay = new Date(parseWarsawTimeToUTC(data.date, "23:59").getTime() + 59 * 1000 + 999);

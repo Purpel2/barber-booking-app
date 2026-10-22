@@ -59,7 +59,7 @@ export default function ReviewModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-            <div className="relative w-full max-w-md bg-[#1c1b1b] border border-surface-container-high rounded-2xl p-6 shadow-2xl space-y-5 text-on-surface">
+            <div className="relative w-full max-w-md bg-surface-container border border-surface-container-high rounded-2xl p-6 shadow-2xl space-y-5 text-on-surface">
                 <button
                     type="button"
                     onClick={onClose}

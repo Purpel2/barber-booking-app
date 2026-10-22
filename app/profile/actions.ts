@@ -4,13 +4,12 @@ import { prisma } from "@/lib/prisma";
 import { createClient } from "@/utils/supabase/server";
 import { revalidatePath } from "next/cache";
 import { cache } from "react";
+import { parseWarsawTimeToUTC } from "@/lib/calendar";
 
 /**
- * Funkcja getProfileData pobiera dane profilu zalogowanego użytkownika, w tym informacje o użytkowniku, jego rezerwacjach, dostępnych barberach oraz aktywnej subskrypcji.
- * Najpierw sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, zwraca null.
- * Następnie pobiera dane użytkownika z bazy danych przy użyciu Prisma, w tym informacje o jego ulubionym barberze.
- * Pobiera również listę rezerwacji użytkownika, dostępnych barberów oraz aktywną subskrypcję, jeśli istnieje.
- * Zwraca obiekt zawierający wszystkie te dane lub null w przypadku błędów.
+ * Funkcja getProfileData pobiera dane profilu zalogowanego użytkownika z bazy danych.
+ * @returns Zwraca obiekt zawierający dane użytkownika, jego rezerwacje, dostępnych barberów oraz aktywną subskrypcję, lub null w przypadku błędów.
+ * @throws Błąd, jeśli użytkownik nie jest zalogowany lub wystąpi problem z pobraniem danych z bazy.
  */
 export const getProfileData = cache(async () => {
     try {
@@ -29,8 +28,13 @@ export const getProfileData = cache(async () => {
                 where: { id: authUser.id },
                 select: {
                     id: true,
+                    firstName: true,
+                    lastName: true,
                     fullName: true,
                     email: true,
+                    avatarUrl: true,
+                    phonePrefix: true,
+                    phoneBody: true,
                     createdAt: true,
                     favoriteBarberId: true,
                     favoriteBarber: {
@@ -42,13 +46,14 @@ export const getProfileData = cache(async () => {
                 where: { userId: authUser.id },
                 include: {
                     barber: { select: { id: true, name: true, role: true, imageUrl: true } },
+                    review: { select: { id: true } },
                     services: {
                         select: {
                             id: true,
                             duration: true,
                             priceAtBooking: true,
                             service: {
-                                select: { name: true, imageUrl: true },
+                                select: { id: true, name: true, imageUrl: true },
                             },
                         },
                     },
@@ -63,7 +68,7 @@ export const getProfileData = cache(async () => {
             prisma.userSubscription.findFirst({
                 where: {
                     userId: authUser.id,
-                    status: "ACTIVE",
+                    status: { in: ["ACTIVE", "PAUSED", "CANCELED"] },
                     expiresAt: { gt: new Date() }
                 },
                 include: { plan: true },
@@ -80,10 +85,8 @@ export const getProfileData = cache(async () => {
 
 /**
  *  Funkcja getUserReservations pobiera rezerwacje zalogowanego użytkownika z bazy danych.
- *  Najpierw sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, zwraca informację o konieczności logowania.
- *  Następnie pobiera rezerwacje użytkownika wraz z informacjami o barberze i usługach z bazy danych przy użyciu Prisma.
- *  Zwraca obiekt zawierający status sukcesu oraz dane rezerwacji.
- *  W przypadku wystąpienia błędów podczas pobierania danych, funkcja loguje błąd i zwraca informację o niepowodzeniu.
+ *  @returns Zwraca obiekt zawierający status sukcesu oraz dane rezerwacji.
+ *  @throws Błąd, jeśli użytkownik nie jest zalogowany lub wystąpi problem z pobraniem danych z bazy.
  */
 export async function getUserReservations() {
     try {
@@ -123,9 +126,10 @@ export async function getUserReservations() {
 }
 
 /**
- * Funkcja cancelReservation umożliwia zalogowanemu użytkownikowi anulowanie swojej rezerwacji.
- * Najpierw sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase. Jeśli nie jest zalogowany, zwraca informację o konieczności logowania.
- * Następnie pobiera rezerwację z bazy danych przy użyciu Prisma i sprawdza, czy użytkownik ma uprawnienia do jej anulowania.
+ * Funkcja cancelReservation umożliwia użytkownikowi anulowanie swojej rezerwacji w bazie danych.
+ * @param reservationId - ID rezerwacji do anulowania.
+ * @returns Zwraca obiekt zawierający status sukcesu oraz komunikat o wyniku operacji.
+ * @throws Błąd, jeśli użytkownik nie jest zalogowany lub wystąpi problem z anulowaniem rezerwacji.
  */
 export async function cancelReservation(reservationId: string) {
     try {
@@ -182,8 +186,106 @@ export async function cancelReservation(reservationId: string) {
 }
 
 /**
- * Funkcja updateFavoriteBarber pozwala użytkownikowi zmienić lub usunąć swojego domyślnego barbera,
- * który będzie automatycznie podpowiadany podczas nowej rezerwacji.
+ * Funkcja rescheduleReservationAction umożliwia użytkownikowi zmianę terminu swojej rezerwacji w bazie danych.
+ * @param data - Obiekt zawierający ID rezerwacji, nową datę i nowy czas.
+ * @returns Zwraca obiekt zawierający status sukcesu oraz komunikat o wyniku operacji.
+ * @throws Błąd, jeśli użytkownik nie jest zalogowany lub wystąpi problem z zmianą terminu rezerwacji.
+ */
+export async function rescheduleReservationAction(data: {
+    reservationId: string;
+    newDate: string;
+    newTime: string;
+}) {
+    try {
+        const supabase = await createClient();
+        const {
+            data: { user: authUser },
+            error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError || !authUser) {
+            return { success: false, message: "Musisz być zalogowany." };
+        }
+
+        const reservation = await prisma.reservation.findFirst({
+            where: {
+                id: data.reservationId,
+                userId: authUser.id,
+            },
+            include: {
+                services: true,
+                barber: { select: { id: true, name: true } },
+            },
+        });
+
+        if (!reservation) {
+            return { success: false, message: "Nie znaleziono rezerwacji lub brak uprawnień." };
+        }
+
+        if (reservation.status === "CANCELLED") {
+            return { success: false, message: "Nie można zmienić terminu anulowanej wizyty." };
+        }
+
+        const totalDuration = reservation.services.reduce((acc, s) => acc + (s.duration || 30), 0);
+        const maxBuffer = reservation.services.reduce((acc, s) => Math.max(acc, s.bufferTime || 0), 0);
+
+        const newStart = parseWarsawTimeToUTC(data.newDate, data.newTime);
+        const newEnd = new Date(newStart.getTime() + (totalDuration + maxBuffer) * 60 * 1000);
+
+        if (newStart < new Date()) {
+            return { success: false, message: "Wybrany termin musi być w przyszłości." };
+        }
+
+        const conflicting = await prisma.reservation.findFirst({
+            where: {
+                barberId: reservation.barberId,
+                status: { not: "CANCELLED" },
+                id: { not: reservation.id },
+                startTime: { lt: newEnd },
+                endTime: { gt: newStart },
+            },
+        });
+
+        if (conflicting) {
+            return { success: false, message: "Ten termin jest już zajęty u wybranego barbera." };
+        }
+
+        await prisma.reservation.update({
+            where: { id: reservation.id },
+            data: {
+                startTime: newStart,
+                endTime: newEnd,
+            },
+        });
+
+        try {
+            await prisma.notification.create({
+                data: {
+                    userId: authUser.id,
+                    type: "APPOINTMENT",
+                    title: "Zmieniono termin wizyty",
+                    message: `Nowy termin wizyty u ${reservation.barber.name}: ${data.newDate} o ${data.newTime}.`,
+                    linkUrl: "/profile/appointments",
+                },
+            });
+        } catch { }
+
+        revalidatePath("/profile");
+        revalidatePath("/profile/appointments");
+        revalidatePath("/reservations");
+
+        return { success: true, message: "Termin wizyty został pomyślnie zaktualizowany." };
+    } catch (err: unknown) {
+        console.error("Błąd rescheduleReservationAction:", err);
+        return { success: false, message: "Wystąpił błąd podczas zmiany terminu." };
+    }
+}
+
+/**
+ * Funkcja updateFavoriteBarber umożliwia użytkownikowi ustawienie lub usunięcie preferowanego barbera w bazie danych.
+ * @param barberId - ID barbera do ustawienia jako preferowanego, lub null w celu usunięcia preferencji.
+ * @returns Zwraca obiekt zawierający status sukcesu oraz komunikat o wyniku operacji.
+ * @throws Błąd, jeśli użytkownik nie jest zalogowany lub wystąpi problem z aktualizacją danych w bazie.
  */
 export async function updateFavoriteBarber(barberId: string | null) {
     try {
@@ -206,5 +308,171 @@ export async function updateFavoriteBarber(barberId: string | null) {
     } catch (err: unknown) {
         console.error("Błąd updateFavoriteBarber:", err);
         return { success: false, message: "Wystąpił błąd podczas zapisu." };
+    }
+}
+
+/**
+ * Funkcja updateUserProfile umożliwia użytkownikowi aktualizację danych profilu w bazie danych.
+ * @param data - Obiekt zawierający nowe dane profilu użytkownika.
+ * @returns Zwraca obiekt zawierający status sukcesu oraz komunikat o wyniku operacji.
+ * @throws Błąd, jeśli użytkownik nie jest zalogowany lub wystąpi problem z aktualizacją danych w bazie.
+ */
+export async function updateUserProfile(data: {
+    firstName: string;
+    lastName: string;
+    phonePrefix?: string;
+    phoneBody: string;
+}) {
+    try {
+        const supabase = await createClient();
+        const {
+            data: { user: authUser },
+            error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError || !authUser) {
+            return { success: false, message: "Musisz być zalogowany." };
+        }
+
+        const firstName = data.firstName.trim();
+        const lastName = data.lastName.trim();
+        const fullName = `${firstName} ${lastName}`.trim() || "Klient Salonu";
+        const phonePrefix = data.phonePrefix ? data.phonePrefix.trim() : undefined;
+
+        await prisma.user.update({
+            where: { id: authUser.id },
+            data: {
+                firstName,
+                lastName,
+                fullName,
+                ...(phonePrefix ? { phonePrefix } : {}),
+                phoneBody: data.phoneBody.trim(),
+            },
+        });
+
+        revalidatePath("/profile");
+        revalidatePath("/profile/settings");
+
+        return { success: true, message: "Dane profilu zostały pomyślnie zaktualizowane." };
+    } catch (err: unknown) {
+        console.error("Błąd updateUserProfile:", err);
+        return { success: false, message: "Wystąpił błąd podczas aktualizacji profilu." };
+    }
+}
+
+/**
+ * Funkcja changeUserPassword umożliwia użytkownikowi zmianę hasła w Supabase Auth.
+ * @param newPassword - Nowe hasło użytkownika.
+ * @returns Zwraca obiekt zawierający status sukcesu oraz komunikat o wyniku operacji.
+ * @throws Błąd, jeśli użytkownik nie jest zalogowany lub wystąpi problem z aktualizacją hasła.
+ */
+export async function changeUserPassword(newPassword: string) {
+    try {
+        if (!newPassword || newPassword.length < 6) {
+            return { success: false, message: "Nowe hasło musi mieć co najmniej 6 znaków." };
+        }
+
+        const supabase = await createClient();
+        const { error } = await supabase.auth.updateUser({
+            password: newPassword,
+        });
+
+        if (error) {
+            return { success: false, message: error.message || "Błąd podczas zmiany hasła." };
+        }
+
+        return { success: true, message: "Hasło zostało pomyślnie zaktualizowane." };
+    } catch (err: unknown) {
+        console.error("Błąd changeUserPassword:", err);
+        return { success: false, message: "Wystąpił błąd podczas zmiany hasła." };
+    }
+}
+
+/**
+ * Funkcja updateUserEmail umożliwia użytkownikowi zmianę adresu e-mail w Supabase Auth i bazie danych.
+ * @param newEmail - Nowy adres e-mail użytkownika.
+ * @returns Zwraca obiekt zawierający status sukcesu oraz komunikat o wyniku operacji.
+ * @throws Błąd, jeśli użytkownik nie jest zalogowany lub wystąpi problem z aktualizacją adresu e-mail.
+ */
+export async function updateUserEmail(newEmail: string) {
+    try {
+        const supabase = await createClient();
+        const {
+            data: { user: authUser },
+            error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError || !authUser) {
+            return { success: false, message: "Musisz być zalogowany." };
+        }
+
+        const cleanEmail = newEmail.trim().toLowerCase();
+        if (!cleanEmail || !cleanEmail.includes("@")) {
+            return { success: false, message: "Wprowadź prawidłowy adres e-mail." };
+        }
+
+        if (cleanEmail === authUser.email?.toLowerCase()) {
+            return { success: false, message: "Nowy adres jest taki sam jak dotychczasowy." };
+        }
+
+        const { error: supaError } = await supabase.auth.updateUser({
+            email: cleanEmail,
+        });
+
+        if (supaError) {
+            return { success: false, message: supaError.message || "Błąd podczas zmiany e-maila." };
+        }
+
+        await prisma.user.update({
+            where: { id: authUser.id },
+            data: { email: cleanEmail },
+        });
+
+        revalidatePath("/profile");
+        revalidatePath("/profile/settings");
+
+        return {
+            success: true,
+            message: "Na nowy adres wysłano link potwierdzający. Sprawdź skrzynkę odbiorczą.",
+        };
+    } catch (err: unknown) {
+        console.error("Błąd updateUserEmail:", err);
+        return { success: false, message: "Wystąpił błąd podczas aktualizacji adresu e-mail." };
+    }
+}
+
+/**
+ * Funkcja updateUserAvatar umożliwia użytkownikowi aktualizację zdjęcia profilowego (awataru) w bazie danych.
+ * @param avatarUrl - URL nowego zdjęcia profilowego lub null w celu usunięcia awatara.
+ * @returns Zwraca obiekt zawierający status sukcesu oraz komunikat o wyniku operacji.
+ * @throws Błąd, jeśli użytkownik nie jest zalogowany lub wystąpi problem z aktualizacją awatara.
+ */
+export async function updateUserAvatar(avatarUrl: string | null) {
+    try {
+        const supabase = await createClient();
+        const {
+            data: { user: authUser },
+            error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError || !authUser) {
+            return { success: false, message: "Musisz być zalogowany." };
+        }
+
+        await prisma.user.update({
+            where: { id: authUser.id },
+            data: { avatarUrl },
+        });
+
+        revalidatePath("/profile");
+        revalidatePath("/profile/settings");
+        revalidatePath("/profile/appointments");
+        revalidatePath("/profile/billing");
+        revalidatePath("/", "layout");
+
+        return { success: true, message: avatarUrl ? "Zdjęcie profilowe zostało zaktualizowane." : "Awatar został usunięty." };
+    } catch (err: unknown) {
+        console.error("Błąd updateUserAvatar:", err);
+        return { success: false, message: "Wystąpił błąd podczas zapisu avatara." };
     }
 }

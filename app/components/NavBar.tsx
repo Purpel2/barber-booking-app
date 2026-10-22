@@ -2,29 +2,34 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, User, LogOut, Settings, CalendarDays, ChevronDown, Menu, X, CreditCard } from "lucide-react";
 import { logoutUser } from "../actions/auth";
+import NotificationBell from "./NotificationBell";
 
 interface NavBarProps {
     user: {
         firstName: string;
         fullName: string;
         email: string;
+        avatarUrl?: string | null;
     } | null;
+    unreadNotificationsCount?: number;
 }
 
 /**
- * Komponent NavBar renderuje pasek nawigacyjny z linkami do różnych sekcji strony, menu użytkownika oraz przyciskiem do umawiania wizyt.
+ * komponent NavBar renderuje pasek nawigacyjny z linkami do różnych sekcji strony, przyciskiem logowania/wylogowania oraz powiadomieniami. Dostosowuje się do urządzeń mobilnych i desktopowych, oferując rozwijane menu dla zalogowanych użytkowników.
+ * @param props - Obiekt zawierający informacje o użytkowniku i liczbie nieprzeczytanych powiadomień.
+ * @returns - Zwraca element JSX reprezentujący pasek nawigacyjny.
  */
-export default function NavBar({ user }: NavBarProps) {
-    const [isMenuOpen, setIsMenuOpen] = useState(false); // stan menu uzytkownika - otwarte/zamkniete
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false); // stan menu mobilnego - otwarte/zamkniete
-    const menuRef = useRef<HTMLDivElement>(null); // referencja do elementu menu uzytkownika, aby zamknac menu po kliknieciu poza nim
+export default function NavBar({ user, unreadNotificationsCount = 0 }: NavBarProps) {
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const menuRef = useRef<HTMLDivElement>(null);
     const pathname = usePathname();
     const router = useRouter();
 
-    // zamykanie dropdownu po kliknięciu gdziekolwiek poza menu
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -41,7 +46,7 @@ export default function NavBar({ user }: NavBarProps) {
         };
     }, [isMenuOpen]);
 
-    async function handleLogout() { // funkcja wylogowania - wywoluje logoutUser, odswieza router i przekierowuje na glowna
+    async function handleLogout() {
         setIsMenuOpen(false);
         setIsMobileMenuOpen(false);
         await logoutUser();
@@ -49,7 +54,7 @@ export default function NavBar({ user }: NavBarProps) {
         router.refresh();
     }
 
-    const getLinkClass = (path: string) => { // podswietlenie aktywnej strony w menu
+    const getLinkClass = (path: string) => {
         const baseClass = "font-headline font-bold tracking-tight transition-all pb-1 text-lg";
         const activeClass = "text-primary border-b-2 border-primary";
         const inactiveClass = "text-on-surface/70 hover:text-primary border-b-2 border-transparent";
@@ -57,7 +62,7 @@ export default function NavBar({ user }: NavBarProps) {
         return `${baseClass} ${pathname === path ? activeClass : inactiveClass}`;
     };
 
-    const getMobileLinkClass = (path: string) => { // podswietlenie aktywnej strony w menu mobilnym
+    const getMobileLinkClass = (path: string) => {
         const baseClass = "font-headline font-bold tracking-tight transition-all py-3 px-4 rounded-xl block text-sm";
         const activeClass = "text-primary bg-primary/10";
         const inactiveClass = "text-on-surface/70 hover:text-primary hover:bg-surface-variant/20";
@@ -68,10 +73,9 @@ export default function NavBar({ user }: NavBarProps) {
     const bookingHref = user ? "/reservations" : "/login?redirect=/reservations";
 
     return (
-        <nav className="sticky top-0 w-full z-50 bg-background/80 backdrop-blur-md border-b border-primary/15 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]">
-            <div className="flex justify-between items-center px-8 py-4 max-w-full">
+        <nav className="sticky top-0 w-full z-50 h-20 bg-background/80 backdrop-blur-md border-b border-primary/15 shadow-[0_20px_40px_-15px_rgba(0,0,0,0.5)]">
+            <div className="flex justify-between items-center px-8 h-full max-w-full">
                 <Link href="/" className="flex items-center gap-3 group focus:outline-none select-none">
-                    {/* brzytwa LOGO */}
                     <svg
                         className="hidden md:block w-6 h-6 text-primary transition-transform duration-300 group-hover:scale-[1.02]"
                         viewBox="0 0 512 512"
@@ -107,7 +111,6 @@ export default function NavBar({ user }: NavBarProps) {
                     `}</style>
                 </Link>
 
-                {/* glowne menu nawigacyjne */}
                 <div className="hidden md:flex items-center gap-8">
                     <Link className={getLinkClass("/")} href="/">STRONA GŁÓWNA</Link>
                     <Link className={getLinkClass("/services")} href="/services">USŁUGI</Link>
@@ -116,26 +119,36 @@ export default function NavBar({ user }: NavBarProps) {
                     <Link className={getLinkClass("/membership")} href="/membership">CZŁONKOSTWO</Link>
                 </div>
 
-                {/* menu uzytkownika */}
                 <div className="flex items-center gap-6">
                     <div className="flex items-center gap-4 text-on-surface/70">
                         {user && (
-                            <button className="hover:text-primary transition-all p-1 relative cursor-pointer" aria-label="Powiadomienia">
-                                <Bell className="w-5 h-5" />
-                                <span className="absolute top-1 right-1 w-2 h-2 bg-primary rounded-full"></span>
-                            </button>
+                            <NotificationBell initialUnreadCount={unreadNotificationsCount} />
+
+
+
                         )}
 
-                        {user ? ( // jesli uzytkownik jest zalogowany, pokazuje menu z imieniem i opcjami
+                        {user ? (
                             <div className="relative" ref={menuRef}>
-                                {/* trigger dropdownu */}
                                 <button
                                     type="button"
                                     onClick={() => setIsMenuOpen((prev) => !prev)}
                                     className="flex items-center gap-2.5 p-1.5 rounded-full hover:bg-surface-container-high transition-colors cursor-pointer select-none focus:outline-none"
                                 >
-                                    <div className="w-8 h-8 rounded-full bg-[#201f1f] border border-primary/40 flex items-center justify-center text-primary text-xs font-bold">
-                                        {user.firstName ? user.firstName[0].toUpperCase() : "U"}
+                                    <div className="w-8 h-8 rounded-full bg-surface-input border border-primary/40 flex items-center justify-center text-primary text-xs font-bold overflow-hidden relative shrink-0">
+                                        {user.avatarUrl ? (
+                                            <Image
+                                                src={user.avatarUrl}
+                                                alt={user.firstName || "Awatar"}
+                                                fill
+                                                className="object-cover"
+                                                unoptimized
+                                            />
+                                        ) : user.firstName ? (
+                                            user.firstName[0].toUpperCase()
+                                        ) : (
+                                            "U"
+                                        )}
                                     </div>
                                     <span className="text-sm font-semibold text-[#e5e2e1] hidden sm:inline">
                                         {user.firstName}
@@ -146,9 +159,9 @@ export default function NavBar({ user }: NavBarProps) {
                                     />
                                 </button>
 
-                                {/* dropdown */}
+
                                 <div
-                                    className={`absolute right-0 mt-2 w-56 rounded-xl bg-[#1c1b1b] border border-surface-container-high shadow-2xl p-1.5 z-50 transition-all duration-150 ease-out origin-top-right ${isMenuOpen
+                                    className={`absolute right-0 mt-2 w-56 rounded-xl bg-surface-container border border-surface-container-high shadow-2xl p-1.5 z-50 transition-all duration-150 ease-out origin-top-right ${isMenuOpen
                                         ? "opacity-100 scale-100 translate-y-0 pointer-events-auto"
                                         : "opacity-0 scale-95 -translate-y-2 pointer-events-none"
                                         }`}
@@ -173,7 +186,16 @@ export default function NavBar({ user }: NavBarProps) {
                                         </Link>
 
                                         <Link
-                                            href="/profile/subscription"
+                                            href="/profile/notifications"
+                                            onClick={() => setIsMenuOpen(false)}
+                                            className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-[#e5e2e1]/80 hover:text-primary hover:bg-surface-container-high transition-colors"
+                                        >
+                                            <Bell className="w-4 h-4 text-[#e5e2e1]/50" />
+                                            <span>Powiadomienia</span>
+                                        </Link>
+
+                                        <Link
+                                            href="/profile/billing"
                                             onClick={() => setIsMenuOpen(false)}
                                             className="flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium text-[#e5e2e1]/80 hover:text-primary hover:bg-surface-container-high transition-colors"
                                         >
@@ -200,6 +222,7 @@ export default function NavBar({ user }: NavBarProps) {
                                             <LogOut className="w-4 h-4 text-[#ffb4ab]" />
                                             <span>Wyloguj się</span>
                                         </button>
+
                                     </div>
                                 </div>
                             </div>
@@ -221,7 +244,7 @@ export default function NavBar({ user }: NavBarProps) {
                         UMÓW WIZYTĘ
                     </Link>
 
-                    <button // przycisk rozwijania menu mobilnego
+                    <button
                         onClick={() => { setIsMobileMenuOpen(!isMobileMenuOpen); setIsMenuOpen(false); }}
                         className="md:hidden text-on-surface/70 hover:text-primary p-1 focus:outline-none cursor-pointer"
                         aria-label="Toggle Mobile Menu"
@@ -231,14 +254,11 @@ export default function NavBar({ user }: NavBarProps) {
                 </div>
             </div>
 
-            {/* menu mobilne */}
             {isMobileMenuOpen && (
                 <>
-                    {/* przyciemnianie tła na mobile - menu */}
-                    <div className="fixed inset-0 top-16.25 bg-black/60 backdrop-blur-sm z-30 md:hidden cursor-pointer" onClick={() => setIsMobileMenuOpen(false)}></div>
+                    <div className="fixed inset-0 top-20 bg-black/60 backdrop-blur-sm z-30 md:hidden cursor-pointer" onClick={() => setIsMobileMenuOpen(false)}></div>
 
-                    {/* lista linków */}
-                    <div className="absolute top-full left-0 w-full bg-[#1c1b1b] border-b border-primary/15 p-4 flex flex-col gap-1.5 z-40 md:hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="absolute top-full left-0 w-full bg-surface-container border-b border-primary/15 p-4 flex flex-col gap-1.5 z-40 md:hidden shadow-[0_25px_50px_-12px_rgba(0,0,0,0.8)] animate-in fade-in slide-in-from-top-2 duration-200">
                         <Link className={getMobileLinkClass("/")} href="/" onClick={() => setIsMobileMenuOpen(false)}>STRONA GŁÓWNA</Link>
                         <Link className={getMobileLinkClass("/services")} href="/services" onClick={() => setIsMobileMenuOpen(false)}>USŁUGI</Link>
                         <Link className={getMobileLinkClass("/barbers")} href="/barbers" onClick={() => setIsMobileMenuOpen(false)}>BARBERZY</Link>
@@ -247,9 +267,31 @@ export default function NavBar({ user }: NavBarProps) {
 
                         {user ? (
                             <div className="pt-2 mt-2 border-t border-outline-variant/15 flex flex-col gap-1">
+                                <div className="flex items-center gap-3 px-3 py-2.5 mb-1 bg-surface-container/60 rounded-xl border border-surface-container-high/50">
+                                    <div className="w-9 h-9 rounded-full bg-surface-input border border-primary/40 flex items-center justify-center text-primary text-xs font-bold overflow-hidden relative shrink-0">
+                                        {user.avatarUrl ? (
+                                            <Image
+                                                src={user.avatarUrl}
+                                                alt={user.firstName || "Awatar"}
+                                                fill
+                                                className="object-cover"
+                                                unoptimized
+                                            />
+                                        ) : user.firstName ? (
+                                            user.firstName[0].toUpperCase()
+                                        ) : (
+                                            "U"
+                                        )}
+                                    </div>
+                                    <div className="min-w-0">
+                                        <div className="text-xs font-bold text-on-surface truncate">{user.fullName || user.firstName}</div>
+                                        <div className="text-[10px] text-on-surface-variant truncate">{user.email}</div>
+                                    </div>
+                                </div>
                                 <Link className={getMobileLinkClass("/profile")} href="/profile" onClick={() => setIsMobileMenuOpen(false)}>MÓJ PROFIL</Link>
                                 <Link className={getMobileLinkClass("/profile/appointments")} href="/profile/appointments" onClick={() => setIsMobileMenuOpen(false)}>MOJE WIZYTY</Link>
-                                <Link className={getMobileLinkClass("/profile/subscription")} href="/profile/subscription" onClick={() => setIsMobileMenuOpen(false)}>SUBSKRYPCJE I ROZLICZENIA</Link>
+                                <Link className={getMobileLinkClass("/profile/notifications")} href="/profile/notifications" onClick={() => setIsMobileMenuOpen(false)}>POWIADOMIENIA</Link>
+                                <Link className={getMobileLinkClass("/profile/billing")} href="/profile/billing" onClick={() => setIsMobileMenuOpen(false)}>SUBSKRYPCJE I ROZLICZENIA</Link>
                                 <Link className={getMobileLinkClass("/profile/settings")} href="/profile/settings" onClick={() => setIsMobileMenuOpen(false)}>USTAWIENIA KONTA</Link>
                                 <button
                                     onClick={handleLogout}
@@ -257,6 +299,7 @@ export default function NavBar({ user }: NavBarProps) {
                                 >
                                     <LogOut className="w-4 h-4" /> WYLOGUJ SIĘ
                                 </button>
+
                             </div>
                         ) : (
                             <div className="pt-2 mt-2 border-t border-outline-variant/15">
@@ -270,7 +313,6 @@ export default function NavBar({ user }: NavBarProps) {
                             </div>
                         )}
 
-                        {/* umow wizyte dla mobile */}
                         <Link
                             href={bookingHref}
                             onClick={() => setIsMobileMenuOpen(false)}

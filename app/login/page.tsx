@@ -193,7 +193,7 @@ export default function LoginPage() {
                                 <div className="w-full border-t border-outline-variant/20"></div>
                             </div>
                             <div className="relative flex justify-center text-[10px] uppercase tracking-[0.2em]">
-                                <span className="px-4 bg-[#1c1b1b] text-outline">Lub zaloguj przez</span>
+                                <span className="px-4 bg-surface-container text-outline">Lub zaloguj przez</span>
                             </div>
                         </div>
 

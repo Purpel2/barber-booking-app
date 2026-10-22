@@ -9,9 +9,9 @@ interface CheckoutPageProps {
 }
 
 /**
- * Funkcja handleSubscribe obsługuje proces subskrypcji użytkownika na wybrany plan członkowski.
- * Pobiera identyfikator planu z danych formularza, sprawdza, czy użytkownik jest zalogowany przy użyciu Supabase.
- * Jeśli użytkownik nie jest zalogowany, następuje przekierowanie do strony logowania.
+ * Funkcja handleSubscribe obsługuje subskrypcję użytkownika na wybrany plan. Pobiera dane z formularza, weryfikuje zalogowanego użytkownika, sprawdza istnienie planu w bazie danych, tworzy subskrypcję i przekierowuje użytkownika do strony potwierdzenia.
+ * @param formData - Dane przesłane z formularza zawierające identyfikator wybranego planu.
+ * @throws Błąd, jeśli użytkownik nie jest zalogowany lub wybrany plan nie istnieje.
  */
 async function handleSubscribe(formData: FormData) {
     "use server";
@@ -46,16 +46,16 @@ async function handleSubscribe(formData: FormData) {
         }
     });
 
+    revalidatePath("/profile");
+    revalidatePath("/profile/billing");
     revalidatePath("/membership");
-    redirect("/membership?success=true");
+    redirect("/profile/billing?success=true");
 }
 
 /**
- * Strona CheckoutPage renderuje podsumowanie wybranego planu subskrypcji oraz umożliwia użytkownikowi przejście do płatności online.
- * Pobiera dane zalogowanego użytkownika przy użyciu Supabase oraz listę aktywnych planów subskrypcji z bazy danych przy użyciu Prisma.
- * Jeśli użytkownik nie jest zalogowany, zostaje przekierowany do strony logowania z parametrem redirect.
- * Jeśli wybrany plan nie istnieje, użytkownik zostaje przekierowany do strony z listą planów.
- * Po kliknięciu przycisku "Przejdź do płatności" wywoływana jest funkcja handleSubscribe, która tworzy subskrypcję w bazie danych i przekierowuje użytkownika do strony z potwierdzeniem.
+ * Funkcja CheckoutPage renderuje stronę podsumowania subskrypcji dla wybranego planu. Sprawdza, czy użytkownik jest zalogowany, pobiera dostępne plany z bazy danych i wyświetla szczegóły wybranego planu wraz z formularzem do przejścia do płatności.
+ * @param searchParams - Parametry wyszukiwania zawierające nazwę wybranego planu.
+ * @returns Zwraca element JSX reprezentujący stronę podsumowania subskrypcji.
  */
 export default async function CheckoutPage({ searchParams }: CheckoutPageProps) {
     const params = await searchParams;
