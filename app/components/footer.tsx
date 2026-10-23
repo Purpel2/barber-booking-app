@@ -1,10 +1,11 @@
 import Link from "next/link";
 
 /**
- * Komponent stopki strony, zawierający informacje o prawach autorskich oraz linki do polityki prywatności, warunków korzystania, kariery i lokalizacji.
+ * Komponent stopki strony, zawierający informacje o prawach autorskich oraz linki do polityki prywatności, warunków korzystania, kariery i kontaktu.
  * Jest responsywny i dostosowuje układ w zależności od szerokości ekranu.
  * Na mniejszych ekranach elementy są wyświetlane w kolumnie, a na większych w wierszu.
  * Stylizacja oparta jest na klasach Tailwind CSS.
+ * @returns Element JSX reprezentujący stopkę strony.
  */
 export default function Footer() {
     return (
@@ -23,8 +24,8 @@ export default function Footer() {
                     <Link className="font-inter text-xs tracking-[0.2em] uppercase text-on-surface/40 hover:text-primary transition-colors" href="#">
                         KARIERA
                     </Link>
-                    <Link className="font-inter text-xs tracking-[0.2em] uppercase text-on-surface/40 hover:text-primary transition-colors" href="#">
-                        LOKALIZACJA
+                    <Link className="font-inter text-xs tracking-[0.2em] uppercase text-on-surface/40 hover:text-primary transition-colors" href="/contact">
+                        KONTAKT & LOKALIZACJA
                     </Link>
                 </div>
             </div>

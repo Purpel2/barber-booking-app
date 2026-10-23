@@ -83,7 +83,7 @@ export default async function CheckoutPage({ searchParams }: CheckoutPageProps) 
     }
 
     return (
-        <div className="bg-background text-on-surface font-body min-h-screen pt-28 pb-20 px-8 lg:px-20 max-w-4xl mx-auto">
+        <div className="bg-background text-on-surface font-body min-h-screen pt-8 sm:pt-10 md:pt-12 pb-16 px-8 lg:px-20 max-w-4xl mx-auto">
             <div className="max-w-xl mx-auto bg-surface-container-low border border-outline-variant/15 rounded-3xl p-8 md:p-12 shadow-2xl">
                 <span className="text-xs uppercase tracking-widest text-primary font-bold block mb-2">Finalizowanie subskrypcji</span>
                 <h1 className="font-headline text-3xl font-black uppercase tracking-tight mb-6">Podsumowanie planu</h1>

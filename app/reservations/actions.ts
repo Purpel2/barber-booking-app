@@ -160,12 +160,37 @@ export async function getBarberDayDetails(
             };
         }
 
-        const schedule = await prisma.barberSchedule.findFirst({
-            where: {
-                barberId,
-                dayOfWeek,
-            },
-        });
+        const startOfDay = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+        const endOfDay = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+
+        const [schedule, dayOff, reservations] = await Promise.all([
+            prisma.barberSchedule.findFirst({
+                where: {
+                    barberId,
+                    dayOfWeek,
+                },
+            }),
+            prisma.barberDayOff.findFirst({
+                where: {
+                    barberId,
+                    startDate: { lte: endOfDay },
+                    endDate: { gte: startOfDay },
+                },
+            }),
+            prisma.reservation.findMany({
+                where: {
+                    barberId,
+                    startTime: {
+                        gte: startOfDay,
+                        lte: endOfDay,
+                    },
+                    status: { not: "CANCELLED" },
+                },
+                include: {
+                    services: { select: { duration: true, bufferTime: true } },
+                },
+            }),
+        ]);
 
         if (schedule && !schedule.isWorking) {
             return {
@@ -189,17 +214,6 @@ export async function getBarberDayDetails(
             allSlots.push(`${h}:${min}`);
         }
 
-        const startOfDay = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
-        const endOfDay = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
-
-        const dayOff = await prisma.barberDayOff.findFirst({
-            where: {
-                barberId,
-                startDate: { lte: endOfDay },
-                endDate: { gte: startOfDay },
-            },
-        });
-
         if (dayOff) {
             return {
                 success: true,
@@ -211,20 +225,6 @@ export async function getBarberDayDetails(
                 allPassedForToday: false,
             };
         }
-
-        const reservations = await prisma.reservation.findMany({
-            where: {
-                barberId,
-                startTime: {
-                    gte: startOfDay,
-                    lte: endOfDay,
-                },
-                status: { not: "CANCELLED" },
-            },
-            include: {
-                services: { select: { duration: true, bufferTime: true } },
-            },
-        });
 
         const busyRanges = reservations.map((res) => {
             const resTime = new Date(res.startTime);

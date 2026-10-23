@@ -6,33 +6,60 @@ import { DayPicker } from "react-day-picker";
 import { format } from "date-fns";
 import { pl } from "date-fns/locale";
 import { useSearchParams, useRouter } from "next/navigation";
+import { motion } from "motion/react";
 import { getBarbers, getAllServicesWithBarbers, getBarberDayDetails, createReservation, getMonthCalendarData } from "./actions";
 import { rescheduleReservationAction } from "@/app/profile/actions";
 import { parseWarsawTimeToUTC } from "@/lib/calendar";
 
 /**
- * Funkcja getInitialBookingDate zwraca początkową datę rezerwacji, uwzględniając aktualną godzinę w strefie czasowej Warszawy oraz dni wolne od pracy (soboty i niedziele).
- * Zwraca obiekt Date reprezentujący początkową datę rezerwacji.
- * @returns Początkowa data rezerwacji.
+ * Funkcja pomocnicza pobierająca aktualny czas w strefie czasowej Warszawy.
+ * @returns Obiekt zawierający rok, miesiąc, dzień, godzinę, minutę i dzień tygodnia w Warszawie.
+ */
+function getWarsawTime(): { year: number; month: number; day: number; hour: number; minute: number; dayOfWeek: number } {
+    const now = new Date();
+    const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "Europe/Warsaw",
+        year: "numeric",
+        month: "numeric",
+        day: "numeric",
+        hour: "numeric",
+        minute: "numeric",
+        hour12: false,
+    }).formatToParts(now);
+
+    const getPart = (type: string) => Number(parts.find((p) => p.type === type)?.value || 0);
+
+    const year = getPart("year");
+    const month = getPart("month");
+    const day = getPart("day");
+    const hour = getPart("hour") % 24;
+    const minute = getPart("minute");
+
+    const dateObj = new Date(year, month - 1, day);
+    const dayOfWeek = dateObj.getDay();
+
+    return { year, month, day, hour, minute, dayOfWeek };
+}
+
+/**
+ * Funkcja getInitialBookingDate wyznacza początkową datę rezerwacji.
+ * Uwzględnia strefę czasową Warszawy, godzinę zamknięcia salonu (16:00) oraz dni wolne (weekendy).
+ * Jeśli minęła godzina zamknięcia salonu (16:00), przenosi rezerwację na kolejny dzień roboczy.
+ * Jeśli wypada w weekend (sobota, niedziela), przenosi na najbliższy poniedziałek.
+ * @returns Początkowa dostępna data rezerwacji.
  */
 function getInitialBookingDate(): Date {
-    const now = new Date();
-    const formatter = new Intl.DateTimeFormat("en-US", {
-        timeZone: "Europe/Warsaw",
-        hour: "numeric",
-        hour12: false,
-    });
-    const warsawHour = Number(formatter.format(now)) % 24;
+    const { year, month, day, hour, minute } = getWarsawTime();
+    const currentMinuteOfDay = hour * 60 + minute;
+    const SALON_CLOSING_MINUTE = 960;
 
-    const target = new Date(now);
-    if (warsawHour >= 18) {
+    const target = new Date(year, month - 1, day, 12, 0, 0);
+
+    if (currentMinuteOfDay >= SALON_CLOSING_MINUTE) {
         target.setDate(target.getDate() + 1);
     }
 
-    const dayOfWeek = target.getDay();
-    if (dayOfWeek === 6) {
-        target.setDate(target.getDate() + 2);
-    } else if (dayOfWeek === 0) {
+    while (target.getDay() === 0 || target.getDay() === 6) {
         target.setDate(target.getDate() + 1);
     }
 
@@ -58,6 +85,21 @@ interface ServiceWithBarbers {
     barbers: BarberItem[];
 }
 
+/**
+ * Interfejs DayDetailsCacheItem definiuje strukturę informacji o dostępności dnia barbera przechowywanych w podręcznej pamięci cache.
+ */
+interface DayDetailsCacheItem {
+    success: boolean;
+    isWorking: boolean;
+    reason: string | null;
+    slots: string[];
+    unavailableSlots: string[];
+    pastSlots?: string[];
+    allPassedForToday?: boolean;
+    slotsUnavailableByDuration?: string[];
+    slotsUnavailableByReservation?: string[];
+}
+
 const CATEGORY_LABELS: Record<string, string> = {
     ALL: "Wszystkie",
     HAIR: "Włosy",
@@ -67,58 +109,64 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 /**
- * Komponent BookingContent renderuje interfejs użytkownika dla procesu rezerwacji wizyty u barbera.
- * Zawiera wybór barbera, usług, daty i godziny wizyty oraz podsumowanie rezerwacji.
- * Zarządza stanem aplikacji, w tym wybranym barberem, usługami, datą, godziną oraz metodą płatności.
- * Obsługuje również logikę ładowania danych z serwera, w tym dostępnych terminów i szczegółów dnia dla wybranego barbera.
- * @returns - Komponent interfejsu użytkownika dla procesu rezerwacji wizyty.
- * @remarks - Komponent używa React hooks, takich jak useState, useEffect, useRef i useTransition do zarządzania stanem i efektami ubocznymi. Używa również DayPicker do wyboru daty wizyty oraz funkcji pomocniczych do formatowania daty i czasu.
+ * Komponent BookingContent renderuje interaktywny formularz rezerwacji wizyty w systemie Fresh Cut Barbershop.
+ * Użytkownik może wybrać barbera, usługi, datę i godzinę wizyty, a następnie dokonać rezerwacji online lub na miejscu.
+ * Zawiera logikę pobierania dostępnych barberów, usług, kalendarza i slotów czasowych oraz obsługę rezerwacji i zmiany terminu.
+ * @returns Element JSX renderujący formularz rezerwacji wizyty.
  */
 function BookingContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
-    const rescheduleId = searchParams.get("rescheduleId");
     const [isPending, startTransition] = useTransition();
-    const summaryRef = useRef<HTMLDivElement>(null);
-    const calendarSectionRef = useRef<HTMLDivElement>(null);
 
+    const rescheduleId = searchParams.get("reschedule");
     const [barbers, setBarbers] = useState<BarberItem[]>([]);
-    const [selectedBarberId, setSelectedBarberId] = useState<string>("");
-
     const [allServices, setAllServices] = useState<ServiceWithBarbers[]>([]);
+    const [selectedBarberId, setSelectedBarberId] = useState<string>("");
     const [selectedServices, setSelectedServices] = useState<ServiceWithBarbers[]>([]);
     const [activeCategory, setActiveCategory] = useState<string>("ALL");
 
-    const [isLoadingSlots, setIsLoadingSlots] = useState<boolean>(false);
-    const [selectedDate, setSelectedDate] = useState<Date>(getInitialBookingDate);
-    const [visibleMonth, setVisibleMonth] = useState<Date>(new Date());
+    const [selectedDate, setSelectedDate] = useState<Date | undefined>(getInitialBookingDate);
+    const [visibleMonth, setVisibleMonth] = useState<Date>(getInitialBookingDate);
+
+    const [calendarData, setCalendarData] = useState<Record<string, number | null>>({});
+
     const [availableSlots, setAvailableSlots] = useState<string[]>([]);
     const [bookedTimes, setBookedTimes] = useState<string[]>([]);
     const [pastSlots, setPastSlots] = useState<string[]>([]);
-    const [allPassedForToday, setAllPassedForToday] = useState<boolean>(false);
+    const [allPassedForToday, setAllPassedForToday] = useState(false);
     const [slotsUnavailableByDuration, setSlotsUnavailableByDuration] = useState<string[]>([]);
     const [slotsUnavailableByReservation, setSlotsUnavailableByReservation] = useState<string[]>([]);
     const [selectedTime, setSelectedTime] = useState<string | null>(null);
-    const [isWorkingDay, setIsWorkingDay] = useState<boolean>(true);
+
+    const [isWorkingDay, setIsWorkingDay] = useState(true);
     const [offReason, setOffReason] = useState<string | null>(null);
-    const [calendarData, setCalendarData] = useState<Record<string, number | null>>({});
-    const [paymentMethod, setPaymentMethod] = useState<"ON_SITE" | "ONLINE">("ONLINE");
+    const [isLoadingSlots, setIsLoadingSlots] = useState(false);
+    const [paymentMethod, setPaymentMethod] = useState<"ONLINE" | "ON_SITE">("ONLINE");
+
+    const summaryRef = useRef<HTMLDivElement>(null);
+    const calendarSectionRef = useRef<HTMLDivElement>(null);
+
+    const dayDetailsCacheRef = useRef<Record<string, DayDetailsCacheItem>>({});
+
+    const currentBarber = barbers.find((b) => b.id === selectedBarberId);
+    const dateStr = selectedDate ? format(selectedDate, "yyyy-MM-dd") : "";
 
     const totalPrice = selectedServices.reduce((sum, s) => sum + s.price, 0);
     const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration, 0);
-    const maxBuffer = selectedServices.reduce((max, s) => Math.max(max, s.bufferTime || 0), 0);
-    const requiredBlock = totalDuration + maxBuffer;
-    const currentBarber = barbers.find((b) => b.id === selectedBarberId);
-
-    const dateStr = format(selectedDate, "yyyy-MM-dd");
+    const totalBufferTime = selectedServices.reduce((sum, s) => sum + (s.bufferTime || 0), 0);
+    const requiredBlock = totalDuration + totalBufferTime;
 
     useEffect(() => {
         async function loadInitialData() {
-            const [barbersRes, servicesRes] = await Promise.all([getBarbers(), getAllServicesWithBarbers()]);
+            const [barbersRes, servicesRes] = await Promise.all([
+                getBarbers(),
+                getAllServicesWithBarbers()
+            ]);
 
             if (barbersRes.success && barbersRes.data.length > 0) {
                 setBarbers(barbersRes.data);
-                const urlBarber = (searchParams.get("barber") || searchParams.get("barberId"))?.toLowerCase();
+                const urlBarber = searchParams.get("barber")?.toLowerCase();
                 if (urlBarber) {
                     const matched = barbersRes.data.find(
                         (b) => b.id.toLowerCase() === urlBarber || b.name.toLowerCase().includes(urlBarber)
@@ -147,18 +195,18 @@ function BookingContent() {
             const baseYear = visibleMonth.getFullYear();
             const baseMonth = visibleMonth.getMonth() + 1;
 
-            let combinedData: Record<string, number | null> = {};
-
-            for (let i = 0; i < 3; i++) {
+            const monthPromises = [0, 1, 2].map((i) => {
                 let targetMonth = baseMonth + i;
                 let targetYear = baseYear;
                 if (targetMonth > 12) {
                     targetMonth -= 12;
                     targetYear += 1;
                 }
-                const data = await getMonthCalendarData(selectedBarberId, targetYear, targetMonth);
-                combinedData = { ...combinedData, ...data };
-            }
+                return getMonthCalendarData(selectedBarberId, targetYear, targetMonth);
+            });
+
+            const results = await Promise.all(monthPromises);
+            const combinedData = Object.assign({}, ...results);
 
             setCalendarData(combinedData);
         }
@@ -169,12 +217,30 @@ function BookingContent() {
         if (!selectedBarberId || !dateStr) return;
         let isCancelled = false;
 
+        const cacheKey = `${selectedBarberId}_${dateStr}_${requiredBlock || 30}`;
+
+        if (dayDetailsCacheRef.current[cacheKey]) {
+            const cached = dayDetailsCacheRef.current[cacheKey];
+            setIsWorkingDay(cached.isWorking);
+            setOffReason(cached.reason);
+            setAvailableSlots(cached.slots);
+            setBookedTimes(cached.unavailableSlots);
+            setPastSlots(cached.pastSlots || []);
+            setAllPassedForToday(Boolean(cached.allPassedForToday));
+            setSlotsUnavailableByDuration(cached.slotsUnavailableByDuration || []);
+            setSlotsUnavailableByReservation(cached.slotsUnavailableByReservation || []);
+            setSelectedTime((prev) => (prev && cached.unavailableSlots.includes(prev) ? null : prev));
+            setIsLoadingSlots(false);
+            return;
+        }
+
         async function fetchDayDetails() {
             setIsLoadingSlots(true);
             const res = await getBarberDayDetails(selectedBarberId, dateStr, requiredBlock || 30);
             if (isCancelled) return;
 
             if (res.success) {
+                dayDetailsCacheRef.current[cacheKey] = res;
                 setIsWorkingDay(res.isWorking);
                 setOffReason(res.reason);
                 setAvailableSlots(res.slots);
@@ -290,7 +356,7 @@ function BookingContent() {
     const filteredServices = allServices.filter(s => activeCategory === "ALL" || s.category === activeCategory);
 
     return (
-        <div className="pt-20 pb-12 px-4 md:px-8 max-w-360 mx-auto min-h-screen text-on-surface">
+        <div className="pt-8 sm:pt-10 pb-16 px-4 md:px-8 max-w-360 mx-auto min-h-screen text-on-surface">
             {rescheduleId && (
                 <div className="mb-6 p-4 rounded-xl bg-primary/10 border border-primary/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
                     <span className="text-on-surface">
@@ -305,7 +371,13 @@ function BookingContent() {
                     </button>
                 </div>
             )}
-            <div className="mb-8">
+
+            <motion.div
+                initial={{ opacity: 0, y: 24 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, ease: [0.21, 0.47, 0.32, 0.98] }}
+                className="mb-8"
+            >
                 <span className="text-primary font-['Inter'] text-xs tracking-[0.25em] uppercase block mb-1">
                     System Rezerwacji
                 </span>
@@ -331,7 +403,7 @@ function BookingContent() {
                                         });
                                     });
                                 }}
-                                className={`p-3.5 rounded-2xl flex items-center gap-4 cursor-pointer border transition-all ${isSelected
+                                className={`p-3.5 rounded-2xl flex items-center gap-4 cursor-pointer border transition-all duration-200 active:scale-[0.98] transform-gpu ${isSelected
                                     ? "bg-primary/10 border-primary shadow-lg shadow-primary/10"
                                     : "bg-background border-surface-container-highest text-on-surface-variant hover:border-primary/40"
                                     }`}
@@ -349,10 +421,15 @@ function BookingContent() {
                         );
                     })}
                 </div>
-            </div>
+            </motion.div>
 
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                <div className="lg:col-span-6 xl:col-span-5 space-y-6 lg:sticky lg:top-24 scroll-mt-24">
+                <motion.div
+                    initial={{ opacity: 0, y: 24 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.1, ease: [0.21, 0.47, 0.32, 0.98] }}
+                    className="lg:col-span-6 xl:col-span-5 space-y-6 lg:sticky lg:top-24 scroll-mt-24"
+                >
                     <div ref={calendarSectionRef} className="bg-background rounded-2xl p-6 shadow-2xl relative border border-surface-container-highest/50">
                         {!selectedBarberId ? (
                             <div className="h-64 flex flex-col items-center justify-center text-center p-6 opacity-60">
@@ -370,13 +447,18 @@ function BookingContent() {
                                 locale={pl}
                                 showOutsideDays={false}
                                 disabled={[
-                                    { before: new Date() },
                                     (date) => {
-                                        const day = date.getDay();
                                         const dateKey = format(date, "yyyy-MM-dd");
-                                        const val = calendarData[dateKey];
+                                        const { year, month, day: tDay, hour, minute } = getWarsawTime();
+                                        const todayKey = `${year}-${String(month).padStart(2, "0")}-${String(tDay).padStart(2, "0")}`;
 
+                                        if (dateKey < todayKey) return true;
+                                        if (dateKey === todayKey && (hour * 60 + minute) >= 960) return true;
+
+                                        const day = date.getDay();
                                         if (day === 0 || day === 6) return true;
+
+                                        const val = calendarData[dateKey];
                                         if (val === null) return true;
 
                                         return false;
@@ -496,7 +578,7 @@ function BookingContent() {
                                                                     : undefined
                                                     }
                                                     onClick={() => handleSelectTime(time)}
-                                                    className={`py-3 px-2 rounded-xl transition-all font-semibold border text-sm flex items-center justify-center w-full relative ${isSelected
+                                                    className={`py-3 px-2 rounded-xl transition-all duration-150 transform-gpu active:scale-95 font-semibold border text-sm flex items-center justify-center w-full relative ${isSelected
                                                         ? "bg-primary text-on-primary border-primary shadow-lg shadow-primary/20 scale-[1.02] font-bold ring-2 ring-primary/50"
                                                         : isPast
                                                             ? "bg-[#252424]/40 text-on-surface-variant/20 border-transparent cursor-not-allowed line-through select-none"
@@ -522,9 +604,14 @@ function BookingContent() {
                             )}
                         </div>
                     )}
-                </div>
+                </motion.div>
 
-                <div className="lg:col-span-6 xl:col-span-7 space-y-6">
+                <motion.div
+                    initial={{ opacity: 0, y: 24 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, delay: 0.18, ease: [0.21, 0.47, 0.32, 0.98] }}
+                    className="lg:col-span-6 xl:col-span-7 space-y-6"
+                >
                     <div className="bg-background rounded-2xl p-6 shadow-xl border border-surface-container-highest/50">
                         <div className="flex justify-between items-center mb-4">
                             <h4 className="text-xs font-['Inter'] uppercase tracking-widest text-primary">
@@ -540,7 +627,7 @@ function BookingContent() {
                                         key={cat}
                                         type="button"
                                         onClick={() => setActiveCategory(cat)}
-                                        className={`px-4 py-1.5 rounded-full text-[11px] font-bold tracking-wider uppercase whitespace-nowrap transition-all border ${activeCategory === cat
+                                        className={`px-4 py-1.5 rounded-full text-[11px] font-bold tracking-wider uppercase whitespace-nowrap transition-all border cursor-pointer active:scale-95 ${activeCategory === cat
                                             ? "bg-primary text-on-primary border-primary"
                                             : "bg-surface-container border-outline-variant/30 text-on-surface-variant hover:text-primary hover:border-primary/50"
                                             }`}
@@ -595,7 +682,7 @@ function BookingContent() {
                                                             onClick={() => {
                                                                 if (!isDisabled) toggleService(service);
                                                             }}
-                                                            className={`p-3 rounded-xl border transition-all flex flex-col justify-between gap-2 ${isDisabled
+                                                            className={`p-3 rounded-xl border transition-all duration-200 transform-gpu active:scale-[0.99] flex flex-col justify-between gap-2 ${isDisabled
                                                                 ? "bg-black/60 border-surface-container-high opacity-50 cursor-not-allowed grayscale"
                                                                 : isSelected
                                                                     ? "bg-primary/10 border-primary text-on-surface cursor-pointer"
@@ -686,13 +773,36 @@ function BookingContent() {
                                 </div>
                             )}
 
-                            <button className="w-full bg-primary text-on-primary py-4 rounded-xl font-bold text-base hover:scale-[1.01] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-primary/20 cursor-pointer" disabled={!selectedDate || !selectedTime || selectedServices.length === 0 || isPending} onClick={handleBooking}>
+                            <button className="w-full bg-primary text-on-primary py-4 rounded-xl font-bold text-base hover:scale-[1.01] transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-xl shadow-primary/20 cursor-pointer active:scale-98" disabled={!selectedDate || !selectedTime || selectedServices.length === 0 || isPending} onClick={handleBooking}>
                                 {isPending ? "Zapisywanie w systemie..." : rescheduleId ? "Zatwierdź nowy termin" : paymentMethod === "ONLINE" ? "Przejdź do płatności online" : "Zatwierdź i Zarezerwuj"}
                             </button>
                         </div>
                     )}
-                </div>
+                </motion.div>
             </div>
+
+            {selectedTime && selectedServices.length > 0 && (
+                <div className="fixed bottom-0 left-0 right-0 z-40 bg-surface-container-highest/95 backdrop-blur-md border-t border-primary/30 p-3.5 sm:p-4 shadow-2xl lg:hidden flex items-center justify-between gap-4 animate-in slide-in-from-bottom duration-300">
+                    <div className="min-w-0">
+                        <p className="text-[10px] uppercase font-bold text-primary tracking-wider">
+                            {selectedTime} • {currentBarber?.name}
+                        </p>
+                        <p className="text-xs text-on-surface truncate font-semibold">
+                            {selectedServices.map((s) => s.name).join(", ")}
+                        </p>
+                        <p className="text-sm font-bold text-primary">
+                            {totalPrice} zł <span className="text-[10px] text-on-surface-variant font-normal">({totalDuration} min)</span>
+                        </p>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => summaryRef.current?.scrollIntoView({ behavior: "smooth" })}
+                        className="px-4 py-2.5 rounded-lg bg-primary text-on-primary font-bold text-xs uppercase tracking-wider shrink-0 cursor-pointer shadow-md active:scale-95"
+                    >
+                        Podsumowanie
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

@@ -13,7 +13,7 @@ export async function getRandomRecentReviews(limit = 12) {
         take: 40,
         orderBy: { createdAt: "desc" },
         include: {
-            user: { select: { firstName: true } },
+            user: { select: { firstName: true, avatarUrl: true } },
         },
     });
 

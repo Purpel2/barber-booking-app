@@ -3,14 +3,11 @@ import { prisma } from "@/lib/prisma";
 import Newsletter from "@/app/components/newsletter";
 import ServicesView, { ServiceItem } from "./services-view";
 
-export const revalidate = 3600; // Cache na 1h - oszczędza połączenia z bazą (Connection Pool)
+export const revalidate = 3600;
 
 /**
- * Strona ServicesPage wyświetla katalog usług dostępnych w systemie barberskim.
- * Pobiera dane usług z bazy danych przy użyciu Prisma i renderuje je w responsywnym układzie.
- * Każda usługa zawiera informacje o nazwie, kategorii, opisie, cenie, czasie trwania oraz zdjęciu.
- * Strona umożliwia filtrowanie usług według kategorii oraz wyświetlanie szczegółowych informacji o każdej usłudze.
- * Jeśli użytkownik jest zalogowany, może również dokonać rezerwacji wybranej usługi.
+ * Podstrona Usługi systemu Fresh Cut Barbershop. Pobiera wszystkie dostępne usługi z bazy danych i renderuje komponent ServicesView z listą usług oraz informacją o zalogowanym użytkowniku.
+ * @returns Element JSX renderujący podstronę z katalogiem usług.
  */
 export default async function ServicesPage() {
     const supabase = await createClient();
@@ -36,8 +33,8 @@ export default async function ServicesPage() {
 
     return (
         <div className="bg-background text-on-surface font-body selection:bg-primary selection:text-on-primary min-h-screen">
-            <main className="pt-32 pb-24 px-6 md:px-8 max-w-7xl mx-auto">
-                <header className="mb-16 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-outline-variant/10 pb-12">
+            <main className="pt-8 sm:pt-10 md:pt-12 pb-20 px-6 md:px-8 max-w-7xl mx-auto">
+                <header className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-outline-variant/10 pb-8">
                     <div className="max-w-2xl">
                         <span className="font-label text-xs tracking-[0.25em] uppercase text-primary mb-3 block font-bold">
                             EKSPERCKA PIELĘGNACJA

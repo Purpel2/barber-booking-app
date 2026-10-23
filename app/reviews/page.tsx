@@ -6,10 +6,9 @@ import ReviewsClient from "./ReviewsClient";
 export const revalidate = 60;
 
 /**
- * Podstrona wyświetlająca wszystkie opinie wystawione przez użytkowników po zakończonych wizytach.
- * Pobiera dane opinii z bazy danych przy użyciu Prisma, w tym informacje o użytkownikach, rezerwacjach i usługach.
- * Oblicza średnią ocenę oraz liczbę wszystkich opinii.
- * Renderuje komponent ReviewsClient z pobranymi danymi opinii i usług.
+ * Podstrona Opinie systemu Fresh Cut Barbershop. Pobiera wszystkie opinie z bazy danych, oblicza średnią ocen i liczbę opinii, 
+ * a następnie renderuje komponent ReviewsClient z początkowymi danymi opinii i listą dostępnych usług.
+ * @returns Element JSX renderujący podstronę z opiniami.
  */
 export default async function ReviewsPage() {
     const [stats, rawReviews, services] = await Promise.all([
@@ -20,7 +19,7 @@ export default async function ReviewsPage() {
         prisma.review.findMany({
             orderBy: { createdAt: "desc" },
             include: {
-                user: { select: { firstName: true } },
+                user: { select: { firstName: true, avatarUrl: true } },
                 reservation: {
                     select: {
                         services: {
@@ -61,16 +60,17 @@ export default async function ReviewsPage() {
             comment: r.comment,
             createdAt: r.createdAt.toISOString(),
             authorName: r.user?.firstName || "Klient",
+            authorAvatar: r.user?.avatarUrl || null,
             serviceName,
             categories: serviceCategories,
         };
     });
     return (
-        <div className="bg-background text-on-surface font-body min-h-screen pt-28 sm:pt-36 pb-20 px-6 sm:px-12 md:px-20 selection:bg-primary selection:text-on-primary">
+        <div className="bg-background text-on-surface font-body min-h-screen pt-8 sm:pt-10 md:pt-12 pb-20 px-6 sm:px-12 md:px-20 selection:bg-primary selection:text-on-primary">
             <div className="max-w-7xl mx-auto">
                 <Link
                     href="/"
-                    className="inline-flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors text-xs font-label uppercase tracking-widest mb-12"
+                    className="inline-flex items-center gap-2 text-on-surface-variant hover:text-primary transition-colors text-xs font-label uppercase tracking-widest mb-6"
                 >
                     <ArrowLeft className="w-4 h-4" />
                     Powrót na stronę główną

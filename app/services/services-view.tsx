@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { Clock, ArrowRight } from "lucide-react";
+import { motion } from "motion/react";
 
 export type ServiceItem = {
     id: string;
@@ -38,9 +39,11 @@ function formatPrice(amount: number): string {
 }
 
 /**
- * Komponent ServicesView renderuje listę usług dostępnych w systemie barberskim.
- * Umożliwia filtrowanie usług według kategorii oraz wyświetlanie szczegółowych informacji o każdej usłudze.
- * Jeśli użytkownik jest zalogowany, może również dokonać rezerwacji wybranej usługi.
+ * Komponent ServicesView renderuje listę dostępnych usług w formie siatki kart z możliwością filtrowania według kategorii.
+ * Każda karta zawiera nazwę usługi, cenę, czas trwania, opis oraz przycisk do rezerwacji. Jeśli użytkownik nie jest zalogowany, przycisk przekierowuje go do strony logowania.
+ * @param services - Lista obiektów usług do wyświetlenia.
+ * @param isLoggedIn - Flaga określająca, czy użytkownik jest zalogowany.
+ * @returns Element JSX renderujący siatkę kart usług z filtrami kategorii.
  */
 export default function ServicesView({ services, isLoggedIn }: ServicesViewProps) {
     const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
@@ -51,25 +54,39 @@ export default function ServicesView({ services, isLoggedIn }: ServicesViewProps
 
     return (
         <div>
-            <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-12 border-b border-outline-variant/10 pb-6">
+            <div className="flex flex-wrap items-center gap-2 md:gap-3 mb-12 border-b border-outline-variant/10 pb-6 relative">
                 {CATEGORIES.map((tab) => {
                     const isActive = selectedCategory === tab.id;
                     return (
                         <button
                             key={tab.id}
+                            type="button"
                             onClick={() => setSelectedCategory(tab.id)}
-                            className={`px-5 py-2.5 rounded-full font-headline text-xs tracking-wider uppercase font-bold transition-all duration-200 cursor-pointer ${isActive
-                                ? "bg-primary text-on-primary shadow-lg shadow-primary/20 scale-105"
-                                : "bg-surface-container-low text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high border border-outline-variant/10"
+                            className={`relative px-5 py-2.5 rounded-full font-headline text-xs tracking-wider uppercase font-bold transition-colors duration-200 cursor-pointer ${isActive
+                                ? "text-on-primary"
+                                : "text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high/60 border border-outline-variant/10"
                                 }`}
                         >
-                            {tab.label}
+                            {isActive && (
+                                <motion.div
+                                    layoutId="activeCategoryPill"
+                                    transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                                    className="absolute inset-0 bg-primary rounded-full shadow-lg shadow-primary/20 z-0"
+                                />
+                            )}
+                            <span className="relative z-10">{tab.label}</span>
                         </button>
                     );
                 })}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            <motion.div
+                key={selectedCategory}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.22, ease: "easeOut" }}
+                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"
+            >
                 {filteredServices.length > 0 ? (
                     filteredServices.map((service) => {
                         const reservationPath = `/reservations?serviceId=${encodeURIComponent(service.id)}`;
@@ -80,7 +97,7 @@ export default function ServicesView({ services, isLoggedIn }: ServicesViewProps
                         return (
                             <article
                                 key={service.id}
-                                className="group flex flex-col bg-[#161616] rounded-2xl overflow-hidden border border-surface-container-high hover:border-primary/40 transition-all duration-300 shadow-xl hover:-translate-y-1"
+                                className="group flex flex-col bg-[#161616] rounded-2xl overflow-hidden border border-surface-container-high hover:border-primary/50 transition-all duration-300 shadow-xl hover:-translate-y-1.5 hover:shadow-2xl hover:shadow-primary/5"
                             >
                                 <div className="relative h-60 w-full overflow-hidden rounded-t-2xl bg-surface-input transform-gpu">
                                     <div className="absolute inset-0 w-full h-full overflow-hidden transform-gpu">
@@ -100,7 +117,7 @@ export default function ServicesView({ services, isLoggedIn }: ServicesViewProps
                                         <h2 className="font-headline text-xl font-bold tracking-tight text-[#e5e2e1] group-hover:text-primary transition-colors">
                                             {service.name}
                                         </h2>
-                                        <span className="font-headline text-xl text-primary font-black whitespace-nowrap">
+                                        <span className="font-headline text-xl text-primary font-black whitespace-nowrap transition-transform duration-300 group-hover:scale-105">
                                             {formatPrice(service.price)}
                                         </span>
                                     </div>
@@ -117,10 +134,10 @@ export default function ServicesView({ services, isLoggedIn }: ServicesViewProps
 
                                         <Link
                                             href={bookingUrl}
-                                            className="inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/30 px-4 py-2 rounded-lg font-headline font-bold text-xs tracking-wider uppercase hover:bg-primary hover:text-on-primary transition-all duration-200"
+                                            className="group/btn inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/30 px-4 py-2 rounded-lg font-headline font-bold text-xs tracking-wider uppercase hover:bg-primary hover:text-on-primary transition-all duration-200 cursor-pointer"
                                         >
                                             <span>Zarezerwuj</span>
-                                            <ArrowRight className="w-3.5 h-3.5" />
+                                            <ArrowRight className="w-3.5 h-3.5 group-hover/btn:translate-x-1.5 transition-transform duration-200" />
                                         </Link>
                                     </div>
                                 </div>
@@ -133,7 +150,9 @@ export default function ServicesView({ services, isLoggedIn }: ServicesViewProps
                     </div>
                 )}
 
-                <div className="group relative flex flex-col justify-end bg-linear-to-b from-[#252019] to-[#1a1713] border border-primary/40 rounded-2xl overflow-hidden p-8 min-h-95 shadow-2xl hover:border-primary/60 transition-all duration-300">
+                <div
+                    className="group relative flex flex-col justify-end bg-linear-to-b from-[#252019] to-[#1a1713] border border-primary/40 rounded-2xl overflow-hidden p-8 min-h-95 shadow-2xl hover:border-primary/60 transition-all duration-300"
+                >
                     <div className="absolute inset-0 z-0 pointer-events-none">
                         <Image
                             src="/images/texture_bg.webp"
@@ -163,13 +182,13 @@ export default function ServicesView({ services, isLoggedIn }: ServicesViewProps
                         </p>
                         <Link
                             href="/membership"
-                            className="inline-flex items-center justify-center w-full bg-primary text-on-primary px-6 py-3.5 rounded-xl font-headline font-bold text-xs uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary/20"
+                            className="inline-flex items-center justify-center w-full bg-primary text-on-primary px-6 py-3.5 rounded-xl font-headline font-bold text-xs uppercase tracking-widest hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary/20 cursor-pointer"
                         >
                             Sprawdź członkostwo
                         </Link>
                     </div>
                 </div>
-            </div>
+            </motion.div>
         </div>
     );
 }

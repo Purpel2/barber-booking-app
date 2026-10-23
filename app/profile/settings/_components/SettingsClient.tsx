@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useRef, useEffect } from "react";
 import Image from "next/image";
+import { motion } from "motion/react";
 import {
     User,
     Mail,
@@ -26,6 +27,7 @@ import {
     changeUserPassword,
     updateUserEmail,
     updateUserAvatar,
+    deleteUserAccountAction,
 } from "../../actions";
 
 interface BarberOption {
@@ -175,6 +177,39 @@ export default function SettingsClient({ user, barbers, isVip }: SettingsClientP
                 toast.error(res.message || "Błąd podczas usuwania avatara.");
             }
         });
+    };
+
+    const [deleteEvadeStep, setDeleteEvadeStep] = useState(0);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+    const lastEvadeTimeRef = useRef(0);
+
+    const triggerEvadeStep = () => {
+        const now = Date.now();
+        if (now - lastEvadeTimeRef.current < 450) return;
+        lastEvadeTimeRef.current = now;
+
+        setDeleteEvadeStep((prev) => {
+            if (prev < 4) return prev + 1;
+            return prev;
+        });
+    };
+
+    const handleConfirmDeleteAccount = async () => {
+        setIsDeletingAccount(true);
+        try {
+            const res = await deleteUserAccountAction();
+            if (res.success) {
+                toast.success(res.message);
+                window.location.href = "/";
+            } else {
+                toast.error(res.message);
+                setIsDeletingAccount(false);
+            }
+        } catch {
+            toast.error("Wystąpił nieoczekiwany błąd podczas usuwania konta.");
+            setIsDeletingAccount(false);
+        }
     };
 
     const [firstName, setFirstName] = useState(user.firstName || "");
@@ -961,20 +996,120 @@ export default function SettingsClient({ user, barbers, isVip }: SettingsClientP
                 </div>
             )}
 
-            <section className="pt-6 border-t border-surface-container-high/60 flex justify-end">
-                <button
-                    type="button"
-                    onClick={() => {
-                        toast("W sprawie usunięcia konta prosimy o kontakt z recepcją salonu.", {
-                            icon: "ℹ️",
-                            style: { background: "#1c1b1b", color: "#e5e2e1", border: "1px solid rgba(255,255,255,0.15)" },
-                        });
-                    }}
-                    className="w-full sm:w-auto flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer shadow-md shadow-red-950/30 active:scale-95"
-                >
-                    <Trash2 className="w-4 h-4" />
-                    <span>Usuń konto</span>
-                </button>
+            {isDeleteModalOpen && (
+                <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
+                    <div className="bg-surface-container-low border border-red-900/40 rounded-2xl max-w-md w-full p-6 text-on-surface shadow-2xl space-y-5 relative">
+                        <div className="flex items-center justify-between pb-3 border-b border-surface-container-high/60">
+                            <div className="flex items-center gap-2.5 text-red-400">
+                                <Trash2 className="w-5 h-5" />
+                                <h3 className="font-headline font-bold text-base text-on-surface">
+                                    Potwierdzenie usunięcia konta
+                                </h3>
+                            </div>
+                            <button
+                                type="button"
+                                disabled={isDeletingAccount}
+                                onClick={() => setIsDeleteModalOpen(false)}
+                                className="text-on-surface-variant hover:text-on-surface p-1 rounded-lg transition-colors cursor-pointer"
+                            >
+                                <X className="w-4 h-4" />
+                            </button>
+                        </div>
+
+                        <div className="space-y-3 text-xs leading-relaxed text-on-surface-variant">
+                            <p className="text-on-surface font-semibold">
+                                Czy na pewno chcesz trwale usunąć swoje konto?
+                            </p>
+                            <p>
+                                Ta operacja jest <strong className="text-red-400">nieodwracalna</strong>. Twoje dane profilowe, historia rezerwacji, opinie oraz aktywna subskrypcja zostaną bezpowrotnie usunięte z systemu Fresh Cut.
+                            </p>
+                        </div>
+
+                        <div className="flex items-center justify-end gap-3 pt-3 border-t border-surface-container-high/60">
+                            <button
+                                type="button"
+                                disabled={isDeletingAccount}
+                                onClick={() => setIsDeleteModalOpen(false)}
+                                className="px-4 py-2.5 rounded-xl bg-surface-container-high text-xs font-semibold text-on-surface hover:bg-surface-bright transition-colors cursor-pointer disabled:opacity-50"
+                            >
+                                Anuluj
+                            </button>
+                            <button
+                                type="button"
+                                disabled={isDeletingAccount}
+                                onClick={handleConfirmDeleteAccount}
+                                className="px-5 py-2.5 rounded-xl bg-red-950/60 hover:bg-red-900/80 text-red-200 border border-red-800/60 hover:border-red-600 transition-colors cursor-pointer shadow-md shadow-red-950/40 flex items-center gap-2 disabled:opacity-50 text-xs font-bold uppercase tracking-wider"
+                            >
+                                {isDeletingAccount ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin text-red-400" />
+                                        <span>Usuwanie konta...</span>
+                                    </>
+                                ) : (
+                                    <>
+                                        <Trash2 className="w-4 h-4 text-red-400" />
+                                        <span>Tak, usuń konto na stałe</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <section className="pt-6 border-t border-surface-container-high/60">
+                <div className="relative w-full h-10 overflow-hidden select-none">
+                    <motion.button
+                        type="button"
+                        onPointerEnter={(e) => {
+                            if (e.pointerType === "touch") return;
+                            if (deleteEvadeStep < 4) {
+                                triggerEvadeStep();
+                            }
+                        }}
+                        onClick={(e) => {
+                            if (deleteEvadeStep < 4) {
+                                e.preventDefault();
+                                triggerEvadeStep();
+                                return;
+                            }
+                            setIsDeleteModalOpen(true);
+                        }}
+                        animate={{
+                            left:
+                                deleteEvadeStep === 0
+                                    ? "100%"
+                                    : deleteEvadeStep === 1
+                                        ? "50%"
+                                        : deleteEvadeStep === 2
+                                            ? "0%"
+                                            : deleteEvadeStep === 3
+                                                ? "50%"
+                                                : "100%",
+                            x:
+                                deleteEvadeStep === 0
+                                    ? "-100%"
+                                    : deleteEvadeStep === 1
+                                        ? "-50%"
+                                        : deleteEvadeStep === 2
+                                            ? "0%"
+                                            : deleteEvadeStep === 3
+                                                ? "-50%"
+                                                : "-100%",
+                        }}
+                        transition={{
+                            duration: 0.75,
+                            ease: [0.25, 1, 0.5, 1],
+                        }}
+                        className={`absolute top-0 h-10 whitespace-nowrap flex items-center justify-center gap-2 px-5 rounded-xl text-xs font-bold uppercase tracking-wider cursor-pointer border transition-colors ${deleteEvadeStep === 4
+                                ? "bg-red-950/40 hover:bg-red-900/50 text-red-300 border-red-800/80 hover:border-red-500/80 shadow-md shadow-red-950/40 active:scale-95"
+                                : "bg-red-950/20 hover:bg-red-950/35 text-red-400 hover:text-red-300 border-red-900/40 hover:border-red-700/60 shadow-sm"
+                            }`}
+                    >
+                        <Trash2 className="w-4 h-4 text-red-400" />
+                        <span>Usuń konto</span>
+                    </motion.button>
+                </div>
             </section>
         </div>
     );

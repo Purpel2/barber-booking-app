@@ -67,13 +67,13 @@ body {
    3. KOMPONENTY POWIERZCHNI & KARTY (SURFACES & CARDS)
    ========================================================================== */
 
-/* Efekt szkła (Glassmorphism) - używany m.in. w pasku nawigacji i pływających panelach */
+/* Efekt szkła (Glassmorphism) */
 .glass-panel {
     background: rgba(28, 27, 27, 0.8);
     backdrop-filter: blur(24px);
 }
 
-/* Standardowy kafelek/karta w panelu (np. statystyki, wizytówki, pakiety) */
+/* Standardowy kafelek/karta w panelu*/
 .card-panel {
     background-color: var(--color-surface-container);
     border: 1px solid var(--color-surface-container-high);
@@ -107,7 +107,7 @@ body {
     color: rgba(196, 199, 199, 0.4);
 }
 
-/* Górna etykieta pola formularza (uppercase ze zwiększonym trackingiem) */
+/* Górna etykieta pola formularza */
 .field-label {
     display: block;
     font-size: 11px;
@@ -137,7 +137,7 @@ body {
     overflow-y: auto;
 }
 
-/* Kontener właściwego okna modalnego */
+/* Kontener okna modalnego */
 .modal-box {
     background-color: var(--color-surface-container-low);
     border: 1px solid var(--color-surface-container-high);
@@ -178,7 +178,7 @@ body {
    7. ANIMACJE & EFEKTY SPECJALNE (ANIMATIONS & UTILITIES)
    ========================================================================== */
 
-/* Płynny pasek marquee*/
+/* pasek marquee*/
 @keyframes marquee {
     0% {
         transform: translateX(0%);
@@ -189,17 +189,15 @@ body {
     }
 }
 
-.animate-marquee {
+.animate-marquee,
+.animate-marquee:hover {
     display: flex;
     width: max-content;
     animation: marquee 45s linear infinite;
+    animation-play-state: running !important;
 }
 
-.animate-marquee:hover {
-    animation-play-state: paused;
-}
-
-/*ciemny pasek przewijania */
+/*custom pasek przewijania */
 .custom-scrollbar {
     scrollbar-width: thin;
     scrollbar-color: #353534 transparent;
@@ -220,4 +218,32 @@ body {
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
     background: #e9c176;
+}
+
+/* Subtelny błysk / refleks świetlny*/
+@keyframes card-shimmer {
+    0% {
+        transform: translateX(-150%) skewX(-20deg);
+    }
+
+    30% {
+        transform: translateX(250%) skewX(-20deg);
+    }
+
+    100% {
+        transform: translateX(250%) skewX(-20deg);
+    }
+}
+
+.animate-card-shimmer {
+    animation: card-shimmer 5s ease-in-out infinite;
+}
+
+.shimmer-flare {
+    background: linear-gradient(90deg,
+            transparent 0%,
+            rgba(233, 193, 118, 0.08) 20%,
+            rgba(255, 255, 255, 0.28) 50%,
+            rgba(233, 193, 118, 0.08) 80%,
+            transparent 100%);
 }

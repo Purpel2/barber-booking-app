@@ -1,12 +1,10 @@
 import Newsletter from '../components/newsletter';
 import Image from 'next/image';
-import Link from 'next/link';
 import { createClient } from '@/utils/supabase/server';
 import { prisma } from '@/lib/prisma';
+import MembershipPlans from './MembershipPlans';
 
-// Cache na 24h - oszczędza połączenia z bazą (Connection Pool)
 export const revalidate = 86400;
-
 
 /**
  * Strona z planami subskrypcji.
@@ -14,6 +12,7 @@ export const revalidate = 86400;
  * Pobiera dane o planach z bazy danych przy użyciu Prisma i renderuje je w responsywnym układzie.
  * Jeśli użytkownik jest zalogowany, kliknięcie przycisku "Wybierz" przekierowuje go do strony checkout z odpowiednim planem.
  * Jeśli użytkownik nie jest zalogowany, kliknięcie przycisku "Wybierz" przekierowuje go do strony logowania z parametrem redirect do checkout.
+ * @returns Strona z planami subskrypcji.
  */
 export default async function MembershipPage() {
     const supabase = await createClient();
@@ -24,21 +23,12 @@ export default async function MembershipPage() {
         orderBy: { price: 'asc' }
     });
 
-    const getCheckoutUrl = (planName: string) => {
-        const query = planName.toLowerCase();
-        return user
-            ? `/membership/checkout?plan=${query}`
-            : `/login?redirect=/membership/checkout?plan=${query}`;
-    };
-
     return (
         <div className="bg-background text-on-surface font-body min-h-screen w-full overflow-x-hidden selection:bg-primary selection:text-on-primary">
 
-            {/* naglowek */}
-            <section className="pt-28 pb-22 px-8 lg:px-20 max-w-350 mx-auto">
+            <section className="pt-8 sm:pt-10 md:pt-12 pb-14 px-8 lg:px-20 max-w-350 mx-auto">
                 <div className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-8">
 
-                    {/* lewa strona */}
                     <div>
                         <span className="font-label text-xs sm:text-sm uppercase tracking-widest text-primary mb-2 block font-bold">
                             Subskrypcja
@@ -48,7 +38,6 @@ export default async function MembershipPage() {
                         </h1>
                     </div>
 
-                    {/* prawa strona*/}
                     <div className="max-w-md lg:pb-2">
                         <p className="font-body text-lg text-on-surface-variant leading-relaxed">
                             Kto wpada regularnie, ten zgarnia więcej. Wybierasz plan, płacisz raz w miesiącu i zapominasz o portfelu. Zawsze świeży look, bez stresu o terminy.
@@ -58,63 +47,10 @@ export default async function MembershipPage() {
                 </div>
             </section>
 
-            {/* sekcja z planami subskypcji */}
             <section className="px-8 lg:px-20 max-w-350 mx-auto mb-12">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:gap-8 items-stretch">
-
-                    {plans.map((plan) => {
-                        const isPopular = plan.isPopular;
-
-                        return (
-                            <div
-                                key={plan.id}
-                                className={`p-8 md:p-10 rounded-2xl relative group flex flex-col justify-between h-full transition-all duration-300 border ${isPopular
-                                    ? "bg-surface-container-high border-2 border-primary shadow-[0_20px_50px_rgba(233,193,118,0.1)] lg:scale-105 z-10"
-                                    : "bg-surface-container-low hover:bg-surface-container-high border-outline-variant/10"
-                                    }`}
-                            >
-                                {isPopular && (
-                                    <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-primary text-on-primary px-4 py-1.5 font-bold text-xs uppercase tracking-widest whitespace-nowrap shadow-lg">
-                                        Najczęściej Wybierany
-                                    </div>
-                                )}
-
-                                <div>
-                                    <h3 className="font-headline text-3xl font-black uppercase tracking-tight mb-2">
-                                        {plan.name}
-                                    </h3>
-                                    <p className={`text-5xl font-black mb-6 ${isPopular ? "text-primary" : "text-primary text-4xl"}`}>
-                                        {plan.price} PLN <span className="text-sm text-on-surface-variant font-normal tracking-normal uppercase">/ {plan.interval}</span>
-                                    </p>
-                                    <ul className="space-y-4 mb-10">
-                                        {plan.features.map((feature, idx) => (
-                                            <li key={idx} className="flex items-start gap-3">
-                                                <span className="text-primary font-bold">✓</span>
-                                                <span className={`text-base ${isPopular || idx < 2 ? "text-on-surface" : "text-on-surface-variant"}`}>
-                                                    {feature}
-                                                </span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-
-                                <Link
-                                    href={getCheckoutUrl(plan.name)}
-                                    className={`block text-center cursor-pointer w-full py-4 font-bold uppercase tracking-widest transition-all active:scale-95 ${isPopular
-                                        ? "bg-primary text-on-primary hover:bg-primary/90 shadow-[0_10px_20px_rgba(233,193,118,0.2)]"
-                                        : "bg-transparent border-2 border-outline-variant text-on-surface hover:border-primary hover:text-primary"
-                                        }`}
-                                >
-                                    Wybierz {plan.name}
-                                </Link>
-                            </div>
-                        );
-                    })}
-
-                </div>
+                <MembershipPlans plans={plans} isLoggedIn={!!user} />
             </section>
 
-            {/* sekcja po co ci czlonkostwo */}
             <section className="px-8 lg:px-20 max-w-350 mx-auto py-24 border-t border-outline-variant/10">
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-20 items-center">
 

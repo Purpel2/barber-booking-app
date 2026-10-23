@@ -117,6 +117,7 @@ export default function NavBar({ user, unreadNotificationsCount = 0 }: NavBarPro
                     <Link className={getLinkClass("/barbers")} href="/barbers">BARBERZY</Link>
                     <Link className={getLinkClass("/portfolio")} href="/portfolio">PORTFOLIO</Link>
                     <Link className={getLinkClass("/membership")} href="/membership">CZŁONKOSTWO</Link>
+                    <Link className={getLinkClass("/contact")} href="/contact">KONTAKT</Link>
                 </div>
 
                 <div className="flex items-center gap-6">
@@ -264,6 +265,7 @@ export default function NavBar({ user, unreadNotificationsCount = 0 }: NavBarPro
                         <Link className={getMobileLinkClass("/barbers")} href="/barbers" onClick={() => setIsMobileMenuOpen(false)}>BARBERZY</Link>
                         <Link className={getMobileLinkClass("/portfolio")} href="/portfolio" onClick={() => setIsMobileMenuOpen(false)}>PORTFOLIO</Link>
                         <Link className={getMobileLinkClass("/membership")} href="/membership" onClick={() => setIsMobileMenuOpen(false)}>CZŁONKOSTWO</Link>
+                        <Link className={getMobileLinkClass("/contact")} href="/contact" onClick={() => setIsMobileMenuOpen(false)}>KONTAKT</Link>
 
                         {user ? (
                             <div className="pt-2 mt-2 border-t border-outline-variant/15 flex flex-col gap-1">

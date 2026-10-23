@@ -476,3 +476,63 @@ export async function updateUserAvatar(avatarUrl: string | null) {
         return { success: false, message: "Wystąpił błąd podczas zapisu avatara." };
     }
 }
+
+/**
+ * Funkcja deleteUserAccountAction umożliwia użytkownikowi bezpowrotne usunięcie swojego konta.
+ * Usuwa powiązane rezerwacje, opinie, subskrypcje, powiadomienia i rekord użytkownika z bazy,
+ * a następnie unieważnia sesję logowania w Supabase.
+ * @returns Obiekt zawierający informacje o powodzeniu operacji oraz komunikat dla użytkownika.
+ * @throws Błąd, jeśli użytkownik nie jest zalogowany lub wystąpi problem z usunięciem konta.
+ */
+export async function deleteUserAccountAction() {
+    try {
+        const supabase = await createClient();
+        const {
+            data: { user: authUser },
+            error: authError,
+        } = await supabase.auth.getUser();
+
+        if (authError || !authUser) {
+            return { success: false, message: "Musisz być zalogowany, aby usunąć konto." };
+        }
+
+        const userId = authUser.id;
+
+        await prisma.$transaction(async (tx) => {
+            await tx.reservationService.deleteMany({
+                where: {
+                    reservation: { userId },
+                },
+            });
+
+            await tx.review.deleteMany({
+                where: { userId },
+            });
+
+            await tx.reservation.deleteMany({
+                where: { userId },
+            });
+
+            await tx.userSubscription.deleteMany({
+                where: { userId },
+            });
+
+            await tx.notification.deleteMany({
+                where: { userId },
+            });
+
+            await tx.user.delete({
+                where: { id: userId },
+            });
+        });
+
+        await supabase.auth.signOut();
+
+        revalidatePath("/", "layout");
+
+        return { success: true, message: "Twoje konto zostało trwale usunięte." };
+    } catch (err: unknown) {
+        console.error("Błąd deleteUserAccountAction:", err);
+        return { success: false, message: "Wystąpił błąd podczas usuwania konta. Spróbuj ponownie." };
+    }
+}

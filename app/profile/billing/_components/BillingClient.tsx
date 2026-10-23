@@ -829,8 +829,8 @@ export default function BillingClient({
                                         Sprzedawca
                                     </span>
                                     <p className="font-semibold text-on-surface">Fresh Cut Barbershop Sp. z o.o.</p>
-                                    <p className="text-on-surface-variant">ul. Mokotowska 49/12</p>
-                                    <p className="text-on-surface-variant">00-542 Warszawa</p>
+                                    <p className="text-on-surface-variant">aleja Grunwaldzka 238A</p>
+                                    <p className="text-on-surface-variant">80-266 Gdańsk</p>
                                     <p className="text-on-surface-variant font-mono">NIP: 525-24-11-987</p>
                                 </div>
                                 <div>
